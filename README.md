@@ -50,8 +50,18 @@ set is part of the result.
 
 Reproducing the results additionally needs the MLRan dataset, which is not
 redistributed here. See [docs/data.md](docs/data.md) for what to obtain and
-where to put it, then [docs/reproduce.md](docs/reproduce.md) for the run order.
-The full chain is roughly 5 hours on one CPU machine.
+where to put it. With it in place, the whole main result is two commands:
+
+```bash
+python scripts/run/lattice_2024.py       # preprocess and train, 3,400 fits, 1.6 h
+python scripts/analysis/shapley_2024.py  # the decomposition, minutes, no refitting
+```
+
+There is no separate preprocessing step, because all four controls are themselves
+preprocessing decisions and each of the 16 coalitions needs its own. See the
+first section of [docs/reproduce.md](docs/reproduce.md). Everything beyond those
+two commands is secondary evidence or a cross-check; the full chain is roughly
+5 hours on one CPU machine.
 
 ```bash
 make all                    # everything, in dependency order

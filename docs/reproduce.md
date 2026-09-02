@@ -2,6 +2,49 @@
 
 [Back to README](../README.md)
 
+## How the pipeline fits together
+
+This repository does not have the usual shape of preprocess, then train, then
+analyse. It cannot, and the reason is the point of the paper.
+
+**All four controls are preprocessing decisions.** B2 picks the time axis and so
+decides which sample lands in which set. A2 filters unseen families out of the
+test set. B1 decides whether feature selection sees the whole panel or only the
+training set. A1 reweights the training class distribution. Preprocess once and
+train afterwards, and all four are frozen at one configuration with nothing left
+to decompose. Sixteen coalitions means sixteen different preprocessing runs, each
+carrying its own fit.
+
+So preprocessing and training are one command, and the attribution is a second
+command that never touches the dataset.
+
+```bash
+python scripts/run/lattice_2024.py       # preprocess + train, 1.6 h
+python scripts/analysis/shapley_2024.py  # attribution, minutes
+```
+
+The first loads MLRan, applies the fixed preprocessing chain down to 1,425
+samples, then runs the lattice. The 3,400 fits break down as follows.
+
+| Design | Coalitions | Fits | Role |
+|---|---|---|---|
+| `temporal` | 16 | 1,600 | the temporal arm of the lattice |
+| `random_fully_matched` | 16 | 1,600 | the reference arm of the lattice |
+| `random` | 1 | 100 | only to split the reported gap three ways |
+| `random_matched` | 1 | 100 | as above |
+
+That is 34 fits per (cut, model, seed) triple, times 5 cuts, 4 models and 5
+seeds. Output is `results/metrics.parquet`, one row per fit, and
+`results/predictions.parquet`, one row per test sample per fit.
+
+The second command reads `metrics.parquet` and computes. It fits no model and
+reads no raw data. Everything reported for RQ1, RQ2 and RQ3 comes out of these
+two commands. Everything else on this page is secondary evidence or a
+cross-check, and skipping it changes none of the headline numbers.
+
+`notebooks/00_data_preparation.ipynb` narrates the preprocessing chain and prints
+the provenance table and fingerprints. It is not a required stage.
+
 ## Before anything
 
 ```bash
