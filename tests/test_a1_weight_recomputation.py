@@ -1,9 +1,9 @@
 """Can A1's weights be recovered after the fact, without being stored?
 
 A1's sample weights are not written to ``predictions.parquet``, and adding a
-column would mean restarting the production run. E3 will therefore recompute
+column would mean restarting the production run. The weights are therefore recomputed
 them in the notebook from the config and the panel. This module checks that
-claim independently of whatever E3 writes, because a recomputation checked only
+claim independently of that recomputation, because one checked only
 by the person who wrote it is not checked.
 
 The weights are ``w_c = p_reference(c) / p_window(c)``, normalised to average
@@ -200,7 +200,7 @@ def test_the_label_codes_must_be_decoded_with_label_categories(panel) -> None:
 
 
 def test_the_metric_is_invariant_to_weight_normalisation(panel) -> None:
-    """One thing E3 cannot get wrong, pinned so nobody spends time on it.
+    """One thing the recomputation cannot get wrong, pinned so nobody re-derives it.
 
     macro-F1 is scale invariant in sample_weight, so omitting the mean-one
     normalisation changes the weight vector but not the score.

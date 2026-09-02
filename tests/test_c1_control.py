@@ -477,7 +477,7 @@ def test_build_jobs_c1_enumerates_sixty_eight_per_group() -> None:
 
 
 def test_half_of_an_extended_run_is_already_in_the_four_control_run() -> None:
-    """The cost claim in ``.draft/c1_control.md``: 6800 planned, 3400 new."""
+    """The cost of the five-control lattice: 6800 planned, 3400 new."""
     args = (_base_config(), PRODUCTION_MODELS, PRODUCTION_SEEDS, PRODUCTION_CUTS)
     four = set(map(repr, build_jobs(*args)))
     five = list(build_jobs_c1(*args))

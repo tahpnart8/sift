@@ -78,7 +78,7 @@ def test_random_split_is_reproducible_for_a_fixed_seed(panel: pd.DataFrame) -> N
 
 
 def test_random_split_actually_responds_to_the_seed(panel: pd.DataFrame) -> None:
-    """Guards against the pilot bug where random_state was hard coded to 42."""
+    """Guards against the bug where random_state was hard coded to 42."""
     a_train, _ = make_split(panel, _random_spec(), TIME_COLUMN, seed=0)
     b_train, _ = make_split(panel, _random_spec(), TIME_COLUMN, seed=1)
     assert list(a_train) != list(b_train)

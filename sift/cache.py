@@ -7,9 +7,6 @@ representation is not guaranteed stable, and joblib only detects edits inside
 the decorated function body, not inside helpers it calls. Both failure modes
 would return silently stale fits, which is the one error this project cannot
 tolerate.
-
-The key therefore hashes the full source of every ``sift/*.py`` module, so any
-edit anywhere in the pipeline invalidates every cached fit.
 """
 
 from __future__ import annotations
@@ -61,7 +58,7 @@ KEYED_LIBRARIES: tuple[str, ...] = (
     "scipy",
 )
 
-#: Estimator parameters excluded from the key. Verified in round 0 that
+#: Estimator parameters excluded from the key. Verified that
 #: LightGBM predictions are bit-identical across ``n_jobs`` in {1, 2, 4, 8},
 #: so keying on them would fragment the cache without protecting correctness.
 UNKEYED_MODEL_PARAMS: frozenset[str] = frozenset(
@@ -71,9 +68,7 @@ UNKEYED_MODEL_PARAMS: frozenset[str] = frozenset(
 _DIGEST_SIZE: int = 16
 
 
-# --------------------------------------------------------------------------
-# Environment and source fingerprints
-# --------------------------------------------------------------------------
+# --- Environment and source fingerprints ------------------------------------
 def _sha256_file(path: Path) -> str:
     """Return the hex SHA-256 digest of a file read in chunks.
 
@@ -105,13 +100,11 @@ CODE_VERSION_ENV: str = "SIFT_CODE_VERSION"
 #: Modules that consume results but can never change a fit. They are excluded
 #: from :func:`code_version`.
 #:
-#: This is an exclusion list rather than an inclusion list on purpose: a module
-#: E1 adds later is hashed by default, so the failure mode of forgetting to
-#: update this set is a wasted refit, never a stale result served as fresh.
-#:
-#: Measured cost of getting this wrong: hashing the whole package meant an edit
-#: to shapley.py and reporting.py, neither of which touches the fit path,
-#: invalidated 2,701 completed fits and about an hour of compute.
+#: An exclusion list rather than an inclusion list: a module added later is
+#: hashed by default, so forgetting to update this set costs a wasted refit,
+#: never a stale result served as fresh. Getting it wrong the other way is
+#: expensive: hashing the whole package once threw away 2,701 completed fits
+#: over an edit to two modules that cannot touch a fit.
 NON_FIT_MODULES: frozenset[str] = frozenset(
     {
         "shapley.py",
@@ -120,6 +113,9 @@ NON_FIT_MODULES: frozenset[str] = frozenset(
         "mock.py",
         "recovery.py",
         "driftsim.py",
+        # No module on the fit path imports iwrisk, and iwrisk imports only
+        # drift, which is already excluded. It cannot reach a fit.
+        "iwrisk.py",
     }
 )
 
@@ -253,9 +249,7 @@ def dataset_fingerprint() -> dict[str, Any]:
     }
 
 
-# --------------------------------------------------------------------------
-# Canonical JSON and key construction
-# --------------------------------------------------------------------------
+# --- Canonical JSON and key construction ------------------------------------
 def _jsonable(value: Any) -> Any:
     """Coerce an arbitrary value into a deterministically serialisable form.
 
@@ -374,12 +368,10 @@ def build_payload(
         "schema_version": SCHEMA_VERSION,
         "task": task,
         "dataset": dataset_fingerprint(),
-        # Two separate facts, and both are load-bearing. The fingerprint
-        # identifies the realised panel, so a preprocessing change the spec
-        # does not express still invalidates the key. The spec is keyed as
-        # well because primary_axis, secondary_axis and prior_reference_rate
-        # are read at fit time by apply_controls and therefore change the
-        # result without changing a single panel row.
+        # Both facts are load-bearing. The fingerprint identifies the realised
+        # panel, so a preprocessing change the spec does not express still
+        # invalidates the key. The spec is keyed too because primary_axis,
+        # secondary_axis and prior_reference_rate are read at fit time.
         "panel_fingerprint": panel_fingerprint,
         "panel_spec": panel_spec,
         "flags": {str(k): bool(v) for k, v in flags.items()},
@@ -413,9 +405,7 @@ def fit_id(payload: Mapping[str, Any]) -> str:
     ).hexdigest()
 
 
-# --------------------------------------------------------------------------
-# Store
-# --------------------------------------------------------------------------
+# --- Store ------------------------------------------------------------------
 #: Key under which each stored record carries the schema it was written with.
 RECORD_SCHEMA_KEY: str = "_schema_version"
 
@@ -428,17 +418,7 @@ class CacheSchemaError(RuntimeError):
 
 
 def _ensure_cache_info() -> None:
-    """Write the schema marker if the directory does not already carry one.
-
-    Notes
-    -----
-    Called from :func:`put` so the invariant holds no matter how the cache was
-    populated. Without this, code calling :func:`run_cell` directly would build
-    a directory of valid entries that :func:`assert_cache_compatible` later
-    refuses. Correctness does not rest on this marker: every record carries its
-    own :data:`RECORD_SCHEMA_KEY`, and a record from another schema reads as a
-    miss, so the worst outcome of a wrongly-marked directory is a refit.
-    """
+    """Write the schema marker if the directory does not already carry one."""
     info = CACHE_DIR / CACHE_INFO_NAME
     if info.is_file():
         return
@@ -585,9 +565,7 @@ def stored_ids() -> set[str]:
     return {path.stem for path in CACHE_DIR.glob("*/*.pkl")}
 
 
-# --------------------------------------------------------------------------
-# Data fingerprints for notebooks and manifests
-# --------------------------------------------------------------------------
+# --- Data fingerprints for notebooks and manifests --------------------------
 def frame_fingerprint(frame: pd.DataFrame) -> str:
     """Fingerprint a DataFrame's content, column names and row order.
 

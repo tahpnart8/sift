@@ -4,12 +4,6 @@ Tests and notebook smoke runs must not require the MLRan release to be present,
 and must not take the several seconds a real load costs. The generators here
 produce frames with the same columns, dtypes and invariants as the real ones, so
 code exercised against them is exercised against the real contract.
-
-The synthetic data carries real structure rather than noise: family membership
-drives feature activation probabilities, so a classifier reaches a score
-meaningfully above chance and a degenerate pipeline is detectable. It also
-carries a deliberate discrepancy between the two temporal axes, so control B2 has
-something to act on.
 """
 
 from __future__ import annotations

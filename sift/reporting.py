@@ -5,16 +5,6 @@ gap and its Shapley-Shorrocks decomposition into the four controls plus the
 residual. The appendix table gives all sixteen lattice cells, which is the
 primary evidence and depends on no aggregation assumption whatsoever; design
 section 8.1 requires it to be printed in full.
-
-Each builder returns a :class:`pandas.DataFrame` for inspection and notebook
-use, and :func:`to_booktabs` renders any of them as a LaTeX ``booktabs``
-tabular. The separation matters because the numbers must be checkable in the
-notebook before they reach the manuscript.
-
-This module carries no dependency on the SIFT data layer. It reads the column
-names of the frame it is given, so the metrics schema of ``CONTRACT.md``
-section 6 is honoured by convention rather than by import, and the builders can
-be unit-tested on a synthetic frame.
 """
 
 from __future__ import annotations
@@ -82,7 +72,7 @@ SCORING_GROUP_KEYS: tuple[str, ...] = ("design", "cut", "model", "seed")
 MIN_DELTA_FOR_SHARE: float = 0.02
 """Below this gap magnitude a share of the gap is not reported.
 
-The floor is the noise floor named in design section 7bis.2. Dividing by a gap
+The floor is the noise floor. Dividing by a gap
 smaller than the noise on that gap produces a ratio like ``R/Delta = 39.1``,
 which is arithmetic noise dressed up as a result; such rows report ``NaN``
 instead and the reader is sent to the signed quantity itself.
@@ -159,9 +149,7 @@ BASES: tuple[str, ...] = ("as_reported", "common", BASELINE_LABELS_BASIS)
 
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
+# --- Helpers ----------------------------------------------------------------
 
 
 def _require_columns(frame: pd.DataFrame, columns: Sequence[str], context: str) -> None:
@@ -214,9 +202,7 @@ def _escape_latex(text: str) -> str:
     return text
 
 
-# ---------------------------------------------------------------------------
-# Main decomposition table
-# ---------------------------------------------------------------------------
+# --- Main decomposition table -----------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -234,10 +220,8 @@ class ModelDecomposition:
     decomposition : sift.shapley.Decomposition
         The attribution, residual, dividends and arithmetic checks.
     intervals : Mapping of {str: tuple of (float, float)}, optional
-        Bootstrap confidence interval per control name, and optionally for the
-        key ``"residual"``. Design section 8.7 requires every reported
-        attribution to carry one, and requires any interval containing zero to
-        be called out rather than silently printed.
+        Bootstrap confidence interval per control name, and optionally for the key
+        ``"residual"``.
     """
 
     model: str
@@ -281,16 +265,6 @@ def build_decomposition_table(
     ValueError
         If ``rows`` is empty, or if the decompositions disagree about the
         player set.
-
-    Notes
-    -----
-    ``residual_share`` is ``residual / delta`` and is left as ``NaN`` when the
-    gap is zero, since a share of a vanishing gap is not defined. It is a
-    convenience for the reader and never the basis of a claim.
-
-    Results are reported per model and not averaged over the twenty cells,
-    because a control that dominates for one model and not for another is
-    itself the finding, and an average would hide it; see design section 8.7.
     """
     if not rows:
         raise ValueError("no decompositions to tabulate")
@@ -347,9 +321,7 @@ def build_decomposition_table(
     return pd.DataFrame.from_records(records)
 
 
-# ---------------------------------------------------------------------------
-# Lattice appendix table
-# ---------------------------------------------------------------------------
+# --- Lattice appendix table -------------------------------------------------
 
 
 def build_lattice_table(
@@ -386,13 +358,6 @@ def build_lattice_table(
     ------
     ValueError
         If the selection does not carry exactly the sixteen coalitions.
-
-    Notes
-    -----
-    This table is the primary evidence of the study. It depends on no
-    aggregation assumption at all, so the design requires it to be printed in
-    full rather than summarised, and a missing cell raises instead of being
-    dropped.
     """
     _require_columns(values, ["model", "cut", "config_id", "v", "delta"], "lattice table")
     control_columns = _infer_control_columns(values, controls)
@@ -446,9 +411,7 @@ def build_lattice_table(
     return table[ordered + list(control_columns)]
 
 
-# ---------------------------------------------------------------------------
-# Interaction and verification tables
-# ---------------------------------------------------------------------------
+# --- Interaction and verification tables ------------------------------------
 
 
 def build_interaction_table(
@@ -466,20 +429,13 @@ def build_interaction_table(
         Display order of the controls. Sorted player set when omitted.
     max_order : int, optional
         Highest coalition size to include. Two gives main effects and pairwise
-        interactions, which is what design section 8.4 asks the paper to show.
+        interactions.
 
     Returns
     -------
     pandas.DataFrame
         Columns ``order``, ``coalition`` and ``dividend``, sorted by order and
         then by descending magnitude within each order.
-
-    Notes
-    -----
-    A pairwise dividend that is large relative to the main effects is the
-    quantitative answer to the reviewer question of whether the controls
-    interact, and therefore to why switching them off one at a time would be
-    order-dependent.
     """
     if controls is None:
         players: set[str] = set()
@@ -529,12 +485,6 @@ def build_verification_table(
     -------
     pandas.DataFrame
         Columns ``check``, ``passed``, ``deviation``, ``tolerance``, ``detail``.
-
-    Notes
-    -----
-    Printing the achieved deviations, rather than only the fact that the checks
-    passed, lets a reader confirm that the core equation holds to machine
-    precision instead of merely to the declared tolerance.
     """
     return pd.DataFrame.from_records(
         [
@@ -550,9 +500,7 @@ def build_verification_table(
     )
 
 
-# ---------------------------------------------------------------------------
-# LaTeX rendering
-# ---------------------------------------------------------------------------
+# --- LaTeX rendering --------------------------------------------------------
 
 
 def to_booktabs(
@@ -579,20 +527,20 @@ def to_booktabs(
     caption : str
         Caption text. Passed through unescaped so that it may contain maths.
     label : str
-        Label, used as ``\\label{<label>}``.
+        Label, used as ``\label{<label>}``.
     columns : sequence of str, optional
         Columns to emit, in order. All columns when omitted.
     headers : Mapping of {str: str}, optional
         Column name to header text. Headers given here are emitted verbatim
-        when ``escape_headers`` is false, which is how ``$\\phi_{A1}$`` and
-        ``$\\Delta$`` reach the output.
+        when ``escape_headers`` is false, which is how ``$\phi_{A1}$`` and
+        ``$\Delta$`` reach the output.
     float_format : str, optional
         Format applied to floating point cells. ``NaN`` renders as ``--``.
     column_format : str, optional
         LaTeX column specification. Inferred as ``l`` for object columns and
         ``r`` for numeric ones when omitted.
     note : str, optional
-        Text placed below the tabular in ``\\footnotesize``. The natural place
+        Text placed below the tabular in ``\footnotesize``. The natural place
         for the statement that the row total is an identity rather than a
         finding.
     environment : str, optional
@@ -602,9 +550,7 @@ def to_booktabs(
     escape_headers : bool, optional
         Escape LaTeX specials in headers. Set false when supplying maths.
     raw_columns : sequence of str, optional
-        Columns whose string cells are already LaTeX and must be emitted
-        verbatim. Without this a cell such as ``$+0.016^{\dagger}$`` would be
-        escaped into visible backslashes.
+        Columns whose string cells are already LaTeX and must be emitted verbatim.
     column_formats : Mapping of {str: str}, optional
         Per-column float format overriding ``float_format``. A standard
         deviation or a percentage should not carry the leading ``+`` that suits
@@ -614,12 +560,6 @@ def to_booktabs(
     -------
     str
         A complete float environment, ready to paste into the manuscript.
-
-    Notes
-    -----
-    Rendering is done here rather than through ``DataFrame.to_latex`` so that
-    header maths, the ``--`` for missing values and the trailing note behave
-    predictably across pandas versions.
     """
     selected = list(frame.columns) if columns is None else list(columns)
     _require_columns(frame, selected, "booktabs rendering")
@@ -681,9 +621,7 @@ def to_booktabs(
     return "\n".join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Rescoring from the stored predictions
-# ---------------------------------------------------------------------------
+# --- Rescoring from the stored predictions ----------------------------------
 
 def compute_metrics_on_labels(
     y_true,
@@ -703,11 +641,8 @@ def compute_metrics_on_labels(
     y_true, y_pred : array-like
         Labels of the scored subset, aligned.
     labels : array-like
-        The frozen label set. Duplicates are collapsed and the set is sorted, so
-        the same set in any order gives the same numbers. A label absent from
-        ``y_true`` still occupies a slot in the macro average and contributes
-        zero, which is the whole point: a family the coalition dropped is
-        counted as unclassified rather than counted out of the average.
+        The frozen label set. Duplicates are collapsed and the set is sorted, so the
+        same set in any order gives the same numbers.
     sample_weight : array-like, optional
         Control A1 weights for the scored subset.
 
@@ -716,17 +651,6 @@ def compute_metrics_on_labels(
     dict
         The four ``sift.metrics.METRIC_NAMES`` plus ``k_test``, which is here
         the size of the frozen set rather than of the window.
-
-    Notes
-    -----
-    Only macro-F1 takes a label set. Balanced accuracy, MCC and accuracy are
-    computed exactly as ``compute_metrics`` computes them and remain functions
-    of the classes present in the scored subset; scikit-learn offers no label
-    pinning for them. The frozen basis therefore fixes the denominator of the
-    primary metric and of that metric only, and a decomposition of balanced
-    accuracy on this basis carries the same caveat it carries on the common one.
-    The arithmetic is delegated to ``sift.metrics`` so that this module cannot
-    drift from the one that produced the stored numbers.
     """
     import numpy  # noqa: PLC0415
 
@@ -779,16 +703,6 @@ def baseline_label_sets(
     ------
     ValueError
         If a group carries no baseline cell, or if its baseline window is empty.
-        Both are refused rather than filled in: a frozen support inferred from
-        whichever cells happen to be present would be a function of which
-        coalitions ran, which is the property this basis exists to deny.
-
-    Notes
-    -----
-    One lookup per group, and the same tuple is then handed to all sixteen
-    coalitions of that group. Reading it once is not an optimisation, it is the
-    guarantee: there is no code path on which a cell's own flags can influence
-    the support it is scored against.
     """
     keys = list(group_keys)
     _require_columns(joined, ["y_true", "config_id", *keys], "baseline label sets")
@@ -833,44 +747,29 @@ def rescore_predictions(
         Contents of ``results/predictions.parquet``: ``fit_id``, ``sample_id``,
         ``grp_id``, ``y_true``, ``y_pred``, ``test_year``.
     metrics : pandas.DataFrame
-        Contents of ``results/metrics.parquet``, used only for the fit metadata
-        that ``predictions`` does not carry. Its metric columns are not read
-        here; they are the drift check, not the source of truth.
+        Contents of ``results/metrics.parquet``, used only for the fit metadata that
+        ``predictions`` does not carry.
     basis : {"as_reported", "common", "baseline_labels"}
-        ``"as_reported"`` scores each fit on its own test window, which is the
-        number an experimenter would publish. ``"common"`` scores every cell of
-        a group on the intersection of the test windows of all its cells, which
-        is the comparability check of design section 8.5. ``"baseline_labels"``
-        scores every cell over the family support of the group's baseline
-        window, which is the same check with a frozen set that does not depend
-        on which controls are on. See :data:`BASES` for the full statement of
-        all three and for why the common basis cannot check A2 or B2.
+        ``"as_reported"`` scores each fit on its own test window, which is the number an
+        experimenter would publish.
     metric_function : callable, optional
-        Function of ``(y_true, y_pred)`` returning a mapping of metric names to
-        values. Defaults to ``sift.metrics.compute_metrics``. Used by the
-        ``as_reported`` and ``common`` bases only.
+        Function of ``(y_true, y_pred)`` returning a mapping of metric names to values.
     group_keys : sequence of str, optional
         Columns identifying one arm of one game instance. Cells are intersected
         within a group and never across groups.
     prior_reference : pandas.Series, optional
-        Reference class distribution from :func:`class_prior_reference`. When
-        given, control A1's sample weights are recomputed for every ``a1_prior``
-        cell so that those cells are scored exactly as the production run scored
-        them. When omitted, A1 cells are scored unweighted and flagged.
+        Reference class distribution from :func:`class_prior_reference`. When given,
+        control A1's sample weights are recomputed for every ``a1_prior`` cell so that
+        those cells are scored exactly as the production run scored them.
     lattice_config_count : int, optional
-        Number of configurations a lattice group must carry before the common
-        basis will intersect over it. A group holding fewer raises, because the
-        intersection would then be one cell's own window. The
-        ``baseline_labels`` basis imposes no such requirement: its frozen set
-        comes from one named cell, so a partial lattice is scored correctly
-        rather than silently rebased.
+        Number of configurations a lattice group must carry before the common basis will
+        intersect over it.
     baseline_config_id : int, optional
         Lattice index of the coalition with every control switched off, whose
         window defines the frozen support of the ``baseline_labels`` basis.
     label_metric_function : callable, optional
         Function of ``(y_true, y_pred, labels, sample_weight)`` used by the
-        ``baseline_labels`` basis. Defaults to
-        :func:`compute_metrics_on_labels`.
+        ``baseline_labels`` basis.
 
     Returns
     -------
@@ -899,17 +798,6 @@ def rescore_predictions(
     vector is stored. Passing ``prior_reference`` therefore recovers those cells
     exactly; :func:`verify_a1_recomputation` proves the recovery reproduces the
     stored metric before any of it is believed.
-
-    Without ``prior_reference`` the A1 cells are scored unweighted and marked
-    ``reconstructable=False``. That is reported rather than hidden, because a
-    silent unweighted recomputation would understate exactly the control it
-    concerns.
-
-    On the common basis the weights are recomputed from the labels of the shared
-    window rather than of the full window, since the class proportions of a
-    subset differ and the weight is a function of those proportions. The same
-    holds on the ``baseline_labels`` basis, where the subset is the cell's own
-    window with the out-of-support families removed.
     """
     if basis not in BASES:
         raise ValueError(f"unknown basis {basis!r}; expected one of {list(BASES)}")
@@ -1054,14 +942,6 @@ def build_agreement_report(
     pandas.DataFrame
         One row per metric and reconstructability class, with ``n_fits``,
         ``n_mismatch``, ``max_abs_diff`` and ``worst_fit_id``.
-
-    Notes
-    -----
-    The two files are written by different code paths, so a disagreement means
-    one of them is wrong and no number downstream can be trusted. Cells that
-    carry the A1 weighting are reported separately, because the weight vector
-    is absent from ``predictions.parquet`` and those cells are expected to
-    differ; a disagreement among the reconstructable cells is a genuine fault.
     """
     columns = [name for name in metric_columns if name in recomputed.columns]
     _require_columns(metrics, ["fit_id", *columns], "agreement report")
@@ -1091,9 +971,7 @@ def build_agreement_report(
     ).reset_index(drop=True)
 
 
-# ---------------------------------------------------------------------------
-# The gap-based characteristic function
-# ---------------------------------------------------------------------------
+# --- The gap-based characteristic function ----------------------------------
 
 
 def build_gap_table(
@@ -1135,12 +1013,6 @@ def build_gap_table(
     ValueError
         If either arm is missing, or if a group does not carry all sixteen
         coalitions on both arms.
-
-    Notes
-    -----
-    ``Delta(S) = M_reference(S) - M_temporal(S)``. Both arms are recomputed at
-    every coalition, so the subtraction is between two numbers measured on the
-    same family set, which is what makes ``v(S)`` comparable across the lattice.
     """
     keys = list(group_keys)
     _require_columns(scored, ["design", "config_id", metric_column, *keys], "gap table")
@@ -1212,16 +1084,6 @@ def build_coalition_values(
     -------
     pandas.DataFrame
         The gap table with ``delta_empty``, ``v`` and ``share_of_delta`` added.
-
-    Notes
-    -----
-    ``v(S) = Delta(empty) - Delta(S)``: how much of the baseline gap is removed
-    once the controls in ``S`` are applied. ``v(empty) = 0`` follows
-    immediately, and the residual ``R = Delta(N)`` is what the controls leave
-    behind.
-
-    ``v`` is signed. A control that widens the gap gives a negative ``v`` and
-    the design forbids clipping it, since the sign is the finding.
     """
     keys = list(group_keys)
     control_columns = _infer_control_columns(gap_table, controls)
@@ -1303,10 +1165,8 @@ def decompose_groups(
         Keys identifying one instance of the game.
 
     on_incomplete : {"raise", "skip"}, optional
-        What to do with a group whose value function contains a non-finite
-        entry, which happens when a cell could not be scored on the requested
-        basis. ``"raise"`` is the default so nothing is dropped silently;
-        ``"skip"`` excludes the group and returns it in the third element.
+        What to do with a group whose value function contains a non-finite entry, which
+        happens when a cell could not be scored on the requested basis.
 
     Returns
     -------
@@ -1316,13 +1176,6 @@ def decompose_groups(
         ``phi_<control>`` per control, ``residual``, the Owen and tier columns
         when requested, and ``checks_passed``; and a frame of the groups that
         were skipped, with the reason.
-
-    Notes
-    -----
-    Instances are kept separate all the way through. The design forbids
-    averaging the twenty cut-by-model cells into a single decomposition,
-    because a control that dominates for one model and not another is itself
-    the result.
     """
     from sift.shapley import decompose  # noqa: PLC0415
 
@@ -1415,19 +1268,6 @@ def build_model_summary(
         One row per (cut, model), with the mean of every attribution, the
         half-width of its interval across seeds, and a ``covers_zero`` flag per
         control and for the residual.
-
-    Notes
-    -----
-    Seeds are the only axis averaged over. Cuts and models are kept apart
-    because the design treats variation between them as a result rather than as
-    noise to be smoothed away.
-
-    The interval here is the spread across the five model seeds. It is not the
-    bootstrap interval over test samples that the design asks for in the final
-    table; two of the four models are deterministic given a seed, so their
-    seed spread is exactly zero and only the bootstrap can supply an interval
-    for them. ``covers_zero`` computed from this column will therefore be
-    optimistic and must be recomputed from the bootstrap before publication.
     """
     from scipy import stats  # noqa: PLC0415
 
@@ -1514,29 +1354,6 @@ def build_gap_decomposition(
     ------
     ValueError
         If any of the four designs is missing at the baseline coalition.
-
-    Notes
-    -----
-    With ``Delta(d) = M_d - M_temporal`` at the baseline coalition,
-
-    .. code-block:: text
-
-        size effect              = Delta(random) - Delta(random_matched)
-        class-composition effect = Delta(random_matched) - Delta(random_fully_matched)
-        remainder                = Delta(random_fully_matched)
-
-    The three telescope onto ``Delta(random)``, the naively reported gap, so the
-    identity is exact arithmetic rather than an empirical finding.
-
-    Both correction terms are signed and are never clipped. The class term
-    measured -0.033 at cut 2023 and +0.237 at cut 2015, and the size term goes
-    negative wherever the temporal arm trains on more data than the naive random
-    reference, which at cut 2023 it does. A clamp anywhere here would report a
-    real effect as absent.
-
-    Dropping ``random_matched`` raises rather than folding the size effect
-    silently into the class term, which would misattribute one confound to
-    another.
     """
     required = ["design", "config_id", "model", "cut", metric_column]
     _require_columns(metrics, required, "gap decomposition")
@@ -1596,19 +1413,6 @@ def class_prior_reference(panel: pd.DataFrame, target: str = "ransomware_family"
     pandas.Series
         Class distribution over the whole panel, summing to one, indexed by the
         integer label code used in ``predictions.parquet``.
-
-    Notes
-    -----
-    This mirrors the single line in ``sift.controls.apply_controls`` that forms
-    the reference. It depends on the panel alone and not on the coalition, the
-    cut or the seed, which is what makes the A1 weight vector recomputable from
-    the stored predictions instead of needing to be written to disk.
-
-    The index is deliberately the *code*, not the family name. ``y_true`` in
-    ``predictions.parquet`` holds positions in the sorted panel vocabulary, so a
-    prior indexed by name would silently mismatch every lookup and yield weights
-    that are wrong rather than absent. The vocabulary is taken from
-    ``sift.experiment.label_categories`` so there is one definition of it.
     """
     from sift.experiment import label_categories  # noqa: PLC0415
 
@@ -1636,19 +1440,6 @@ def recompute_a1_weights(y_true, reference: pd.Series):
     -------
     numpy.ndarray
         Weights averaging to one, aligned to ``y_true``.
-
-    Notes
-    -----
-    The weight of a sample is ``p_reference(c) / p_window(c)`` for its class
-    ``c``, renormalised so the effective sample size is preserved. It is a
-    deterministic function of the window's label vector and the panel, and the
-    label vector is stored in ``predictions.parquet``, so nothing about A1 needs
-    to be persisted.
-
-    The arithmetic is delegated to ``sift.controls`` rather than reimplemented.
-    A second implementation here could drift from the one that produced the
-    stored numbers and would then reproduce them only by luck;
-    :func:`verify_a1_recomputation` exists to prove that it does not.
     """
     from sift.controls import _prior_weights  # noqa: PLC0415
 
@@ -1696,18 +1487,6 @@ def verify_a1_recomputation(
     ------
     ValueError
         If no A1-on fits are present.
-
-    Notes
-    -----
-    Recomputing a weight vector is convenient; reproducing the stored metric
-    with it is what makes the recomputation trustworthy. If any row here
-    disagrees, the weights are not the ones that produced the published numbers
-    and the A1 attribution must not be reported until that is resolved.
-
-    The first thing to suspect on a disagreement is the panel: the reference
-    prior is the panel's class distribution, so a panel that differs from the
-    one the run used gives every A1 cell a wrong weight. Run
-    :func:`panel_matches_run` before this.
     """
     import numpy as np  # noqa: PLC0415
 
@@ -1762,18 +1541,6 @@ def panel_matches_run(panel: pd.DataFrame, manifest: dict) -> dict[str, object]:
     -------
     dict
         ``panel_fingerprint``, ``run_fingerprint``, ``matches`` and ``detail``.
-
-    Notes
-    -----
-    Everything recomputed from the predictions depends on the panel: the A1
-    weights are a function of its class distribution, and the common basis is a
-    function of its sample identifiers. Rebuilding a different panel than the
-    run used produces numbers that are internally consistent and quietly wrong,
-    so the fingerprints are compared before any of it is believed.
-
-    A smoke run on a synthetic panel writing to the same directory as a
-    production run is the concrete way this goes wrong, and it is exactly what
-    this check caught during development.
     """
     from sift import cache  # noqa: PLC0415
 
@@ -1822,19 +1589,6 @@ def compare_metric_decompositions(
         One row per quantity and metric, with the mean attribution, its mean
         magnitude, and the ratio of that magnitude to the same quantity under
         the first metric given.
-
-    Notes
-    -----
-    The choice of metric is itself an evaluation decision, and it can hide a
-    confound. macro-F1 averages over classes and can neutralise a change in the
-    class prior almost exactly, which is the one thing control A1 manipulates;
-    accuracy is prior-sensitive and so reveals it. Reporting the decomposition
-    under one metric alone would therefore let the metric decide which confounds
-    appear to exist.
-
-    The ``ratio_to_first`` column is the diagnostic: a control whose attribution
-    is near zero under the first metric and materially larger under another is
-    being masked by the first, and that masking is a result in its own right.
     """
     if not frames:
         raise ValueError("no decomposition frames to compare")

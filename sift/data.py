@@ -3,15 +3,6 @@
 The pipeline implemented here is fixed preprocessing. It is applied identically
 to all 16 lattice configurations, so none of its steps is a control and none of
 them appears in :class:`sift.config.ControlFlags`.
-
-The steps, with the row counts they are asserted against:
-
-1. Join the feature matrix to the metadata on ``sample_id``: 4880 rows.
-2. Carry both temporal axes into the panel.
-3. Drop samples activating no feature: 4742 rows.
-4. Collapse exact duplicate feature vectors, keeping the earliest: 3605 rows.
-5. Restrict to the analysis window on the primary axis (2012-2024): 3311 rows.
-6. Apply the task filter: the family task keeps 1425 rows over 34 families.
 """
 
 from __future__ import annotations
@@ -223,9 +214,7 @@ def build_panel(
     return panel, provenance
 
 
-# ===========================================================================
-# C1: the two panel variants a five-control run needs
-# ===========================================================================
+# --- C1: the two panel variants a five-control run needs --------------------
 
 
 @dataclass(frozen=True)
@@ -234,24 +223,6 @@ class PanelVariants:
 
     Two panels are built rather than one panel collapsed per configuration, and
     the choice is load bearing for two separate reasons.
-
-    *Correctness of the ON state.* ``build_panel`` collapses duplicate groups
-    **before** the analysis-window filter and before the task filter. A group
-    whose earliest member falls outside the window is therefore collapsed onto
-    that member and then dropped entirely. Collapsing per configuration, after
-    the panel was built, would instead keep a later member of the same group,
-    which is a different panel from the one every published result was measured
-    on. Rebuilding through ``build_panel`` with ``dedup_exact=True`` reproduces
-    the production panel exactly; ``test_c1_control.py`` pins that.
-
-    *Correctness of the cache key.* ``cache.build_payload`` hashes both the
-    ``PanelSpec`` and a content fingerprint of the realised panel. Two panels
-    built here differ in both, so the two C1 states can never collide on one
-    ``fit_id``. Had C1 been implemented as a per-configuration collapse of a
-    single panel, both states would have shared one panel fingerprint and one
-    ``dedup_exact`` value, and the key would have separated them only if a new
-    field had been threaded into the payload -- which is exactly the failure R2
-    found and E2 measured at 0.114.
 
     Attributes
     ----------
@@ -317,12 +288,6 @@ def build_panel_variants(raw: pandas.DataFrame, spec: PanelSpec) -> PanelVariant
     ------
     ValueError
         Propagated from :func:`build_panel`.
-
-    Notes
-    -----
-    This is the only entry point that a five-control run needs from this module.
-    A four-control run calls :func:`build_panel` as before and never reaches
-    here.
     """
     with_dedup, provenance_on = build_panel(raw, panel_spec_for_c1(spec, True))
     without_dedup, provenance_off = build_panel(raw, panel_spec_for_c1(spec, False))

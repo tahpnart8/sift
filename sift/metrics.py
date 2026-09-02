@@ -8,16 +8,6 @@ would average over different numbers of classes and their scores would not be
 comparable. Pinning the label set to the classes actually present in ``y_true``
 makes the denominator a property of the test window rather than of the model's
 guesses, and ``k_test`` records it on every result row.
-
-``zero_division`` is likewise set explicitly. A family present in the test window
-that the model never predicts contributes a genuine zero to the macro average;
-leaving that to a library default would let the score depend on a warning
-setting.
-
-Macro-F1 and balanced accuracy are reported together because they can diverge
-sharply: the pilot produced a macro-F1 of 0.244 against a balanced accuracy of
-0.471 on the same fit. Reporting one alone would leave the conclusion resting on
-a metric choice.
 """
 
 from __future__ import annotations
@@ -162,10 +152,6 @@ def bootstrap_distribution(
     redrawn, which would bias the distribution upward and silently change the
     estimand.
 
-    Resampling is over test rows, so the interval describes sampling variation
-    within this window. It is not an interval for the population, because a
-    temporal window is one specific time slice rather than an exchangeable draw.
-
     Parameters
     ----------
     y_true, y_pred : numpy.ndarray
@@ -177,11 +163,9 @@ def bootstrap_distribution(
     seed : int
         Seed for the resampling generator.
     sample_weight : numpy.ndarray, optional
-        Per-sample weights from control A1, aligned to ``y_true``. Weights are
-        resampled by the same index draw as the labels, so each resample carries
-        the weights of the rows it actually drew. Omitting them where the point
-        estimate used them would report an interval for a different estimand than
-        the estimate it accompanies.
+        Per-sample weights from control A1, aligned to ``y_true``. Weights are resampled
+        by the same index draw as the labels, so each resample carries the weights of
+        the rows it actually drew.
 
     Returns
     -------
@@ -243,9 +227,7 @@ def bootstrap_ci(
     alpha : float
         Two-sided miscoverage. ``0.05`` gives a 95 percent interval.
     sample_weight : numpy.ndarray, optional
-        Per-sample weights from control A1, forwarded to
-        :func:`bootstrap_distribution`. Pass the same weights used for the point
-        estimate, or the interval will not describe it.
+        Per-sample weights from control A1, forwarded to :func:`bootstrap_distribution`.
 
     Returns
     -------
@@ -261,12 +243,12 @@ def bootstrap_ci(
     return float(low), float(high)
 
 
-#: Cut years of the four AUT evaluation slots, per design section 4.3.
+#: Cut years of the four AUT evaluation slots.
 #:
 #: Each slot trains on everything before its cut and tests on the two years from
-#: it, so the slots are ``2016-2017``, ``2018-2019``, ``2020-2021`` and
-#: ``2022-2023``. They are disjoint, equal in width and contiguous, which is what
-#: makes the trapezoidal average well defined.
+#: it, giving ``2016-2017``, ``2018-2019``, ``2020-2021`` and ``2022-2023``.
+#: Disjoint, equal in width and contiguous, which is what makes the trapezoidal
+#: average well defined.
 AUT_CUT_YEARS: tuple[int, ...] = (2016, 2018, 2020, 2022)
 
 #: Width in years of every AUT slot. Equal widths are a precondition, not a
@@ -285,11 +267,6 @@ def assert_equal_disjoint_slots(
     the same width and the points are evenly spaced. Overlapping slots break the
     trapezoid outright, because the same sample is then counted in two adjacent
     terms.
-
-    The failure is raised rather than declined. Returning ``nan`` or skipping the
-    computation would leave a hole in a results table that a reader takes for
-    "not run yet"; calling AUT on a series it is undefined for is a programming
-    error and should stop the caller.
 
     Parameters
     ----------
@@ -355,11 +332,6 @@ def aut(scores: Sequence[float]) -> float:
     """Area under time, the trapezoidal average of a metric over evaluation slots.
 
     Implements the TESSERACT definition
-
-    .. math::
-
-        \mathrm{AUT}(f, N) = \frac{1}{N - 1}
-        \sum_{k=1}^{N-1} \frac{f(x_{k+1}) + f(x_k)}{2}
 
     Parameters
     ----------

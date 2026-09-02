@@ -83,8 +83,7 @@ def load_feature_name_map(data_dir: Path = MLRAN_DIR) -> dict[str, str]:
     Returns
     -------
     dict of str to str
-        Identifier as it appears in the panel columns, mapped to the readable
-        name. Identifiers absent from the file are simply absent from the map.
+        Identifier as it appears in the panel columns, mapped to the readable name.
 
     Raises
     ------

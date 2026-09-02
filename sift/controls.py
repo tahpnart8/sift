@@ -3,19 +3,6 @@
 The controls do not commute, so the Shapley value function ``v(S)`` is only well
 defined once an application order is fixed. That order is part of the method and
 must be stated in the paper.
-
-The rationale for :data:`CONTROL_ORDER`: ``b2_axis`` decides which sample falls
-in which half, so it runs first; ``a2_labels`` then filters samples; ``a1_prior``
-assigns weights without changing sample composition; ``b1_fs`` selects features
-on the training half, which by then is settled.
-
-Each control function takes an ``enabled`` flag and is a no-op when it is
-``False``. The 16 coalitions are therefore total: every subset of the four
-players is a valid, runnable configuration.
-
-An opt-in fifth control, C1 deduplication, is defined at the foot of this
-module. It does not touch anything above it: :data:`CONTROL_ORDER` and
-:func:`apply_controls` stay four-player and stay the default.
 """
 
 from __future__ import annotations
@@ -67,20 +54,14 @@ class ControlledData:
     time_column : str
         Temporal axis the split was drawn on, as resolved by control B2.
     test_weights : numpy.ndarray or None
-        Sample weights from control A1, or ``None`` when A1 is disabled. Weights
-        average to one, so they rescale the class prior without changing the
-        effective sample size. These are applied when scoring the test window.
+        Sample weights from control A1, or ``None`` when A1 is disabled. Weights average
+        to one, so they rescale the class prior without changing the effective sample
+        size.
     train_weights : numpy.ndarray or None
-        Computed but deliberately never used at fit time. A1 is an intervention
-        on the measurement, not on the learner: the question it answers is what
-        the reported score would have been had the test window carried the
-        reference class prior, which is a property of how the score is computed.
-        Reweighting the training set as well would additionally change what the
-        model learned, so the resulting number would no longer isolate the prior
-        shift from the model's response to it. The field is retained because it
-        makes the symmetry of the two windows visible and because
-        :mod:`sift.experiment` requires the attribute to be present; do not wire
-        it into ``fit``.
+        Computed but deliberately never used at fit time. A1 is an intervention on the
+        measurement, not on the learner: the question it answers is what the reported
+        score would have been had the test window carried the reference class prior,
+        which is a property of how the score is computed.
     train_idx, test_idx : pandas.Index
         Panel index labels of the two halves, retained so predictions can be
         joined back to the panel.
@@ -105,7 +86,7 @@ def resolve_time_axis(spec: PanelSpec, enabled: bool) -> str:
         Panel specification carrying both axis names.
     enabled : bool
         ``False`` selects the compile timestamp, the erroneous axis that a naive
-        evaluation would reach for. ``True`` selects the first-submission date.
+        evaluation would reach for.
 
     Returns
     -------
@@ -181,7 +162,6 @@ def match_class_prior(
         Panel specification; ``prior_reference_rate`` is read for the binary task.
     reference : pandas.Series, optional
         Reference class distribution, indexed by class label and summing to one.
-        Required for the multi-class task, where no scalar rate is meaningful.
 
     Returns
     -------
@@ -260,8 +240,8 @@ def resolve_feature_set(
     n_features : int
         Number of features to retain.
     enabled : bool
-        When ``False`` selection is fitted on the whole panel and therefore leaks
-        test information. When ``True`` it is fitted on the training half alone.
+        When ``False`` selection is fitted on the whole panel and therefore leaks test
+        information.
     seed : int
         Seed for the mutual-information estimator.
 
@@ -269,13 +249,6 @@ def resolve_feature_set(
     -------
     list of str
         Selected feature columns.
-
-    Notes
-    -----
-    The published feature space has already been reduced from over six million
-    raw features to 483 by the dataset authors, using their own split. Selection
-    here can only be re-run within those 483 columns, so the contribution
-    attributed to B1 is a lower bound on the true effect.
     """
     source = train if enabled else panel
     return select_features(source, columns, target, n_features, seed)
@@ -357,26 +330,20 @@ def apply_controls(panel: pandas.DataFrame, cfg: ExperimentConfig) -> Controlled
     )
 
 
-# ===========================================================================
-# C1: deduplication as an opt-in fifth control
-# ===========================================================================
+# --- C1: deduplication as an opt-in fifth control ---------------------------
 
 #: Mandatory application order of the five controls.
 #:
-#: ``c1_dedup`` comes first, and the reason is not stylistic. The other four
-#: controls rearrange or reweight a fixed set of samples: B2 decides which
-#: window a sample falls in, A2 filters the test window, A1 assigns weights, B1
-#: chooses the rows the selector sees. C1 decides *which samples exist at all*.
-#: A group of identical feature vectors spread across several years is either
-#: one sample or five, and until that is settled B2 cannot decide which window
-#: they fall in, A2 cannot know which families the training half contains, A1
-#: cannot count the class prior, and B1 cannot fit a selector. Every one of the
-#: four therefore reads a quantity that C1 defines, so C1 precedes all of them.
+#: ``c1_dedup`` comes first because it decides *which samples exist at all*,
+#: while the other four rearrange or reweight a fixed set. Until a group of
+#: identical feature vectors is settled as one sample or five, B2 cannot place
+#: it in a window, A2 cannot list the training families, A1 cannot count the
+#: class prior and B1 cannot fit a selector.
 #:
-#: The order is pinned by ``tests/test_c1_control.py`` and is realised
-#: structurally rather than by convention: C1 is applied by
-#: :func:`sift.data.build_panel_variants`, upstream of the panel that
+#: The order is structural rather than conventional: C1 is applied by
+#: :func:`sift.data.build_panel_variants`, upstream of the panel
 #: :func:`apply_controls` receives, so no code path can apply it later.
+#: ``tests/test_c1_control.py`` pins it.
 CONTROL_ORDER_C1: tuple[str, ...] = (C1_NAME,) + CONTROL_ORDER
 
 
@@ -393,8 +360,7 @@ def apply_controls_c1(
         Both C1 variants of the analysis panel, from
         :func:`sift.data.build_panel_variants`.
     base : sift.config.ExperimentConfig
-        Template configuration supplying split, model, seed, target and feature
-        budget. Its ``flags`` and its ``panel.dedup_exact`` are overridden.
+        Template configuration supplying split, model, seed, target and feature budget.
     flags : sift.config.ExtendedControlFlags
         The extended coalition for this cell.
 
@@ -407,13 +373,6 @@ def apply_controls_c1(
     ------
     ValueError
         Propagated from :func:`apply_controls`.
-
-    Notes
-    -----
-    C1 is applied by selecting the panel, not by a step inside this function.
-    Everything downstream is the unmodified four-control path, so a cell with
-    ``c1_dedup=True`` produces byte-for-byte what the four-control lattice
-    produces for the same coalition.
     """
     return apply_controls(
         panels.select(flags.c1_dedup),

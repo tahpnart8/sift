@@ -8,7 +8,7 @@ close is not good enough: an implementation that quietly shrank to whatever the
 panel could supply would report a Delta that still carried the size effect and
 would be worse than useless, because it would look like it had been controlled.
 
-Assumed API, to be confirmed by E1:
+Assumed API:
 
 * ``"random_matched"`` joins ``sift.experiment.DESIGNS``;
 * ``make_split`` dispatches on it, taking the target sizes from the temporal
@@ -109,7 +109,7 @@ def test_matched_sizes_equal_the_temporal_sizes_exactly(panel, cut: int) -> None
 
 
 def test_matched_design_never_shrinks_below_the_temporal_reference(panel) -> None:
-    """Restated as a one-sided invariant, in case E1 chooses a different API.
+    """Restated as a one-sided invariant, in case the API differs.
 
     Equality is what is wanted, but silent shrinkage is the failure that would
     corrupt the published Delta, so it is asserted separately and loudly.

@@ -5,63 +5,6 @@ controls cannot explain. Whether any of it is genuine concept drift is exactly
 what the framework cannot settle on real data, because drift magnitude is not
 observable on real MLRan features: there is no column that says how much
 ``P(y | x)`` moved between 2015 and 2021.
-
-This module supplies the missing check. It generates panels in which the drift
-magnitude
-is *set by the experimenter* and every one of the four confounds is null by
-construction, so that
-
-* anything the decomposition attributes to ``a1_prior``, ``a2_labels``,
-  ``b1_fs`` or ``b2_axis`` is a false positive, and
-* everything real must land in ``R``.
-
-Generator
----------
-``d`` binary features are drawn independently from Bernoulli distributions whose
-parameters are the marginal feature frequencies of the real MLRan panel, so the
-sparsity profile is the real one. Labels come from a logistic model on the
-*standardised* features ``z_j = (x_j - p_j) / sqrt(p_j (1 - p_j))``. Working in
-standardised coordinates is what makes the norm of ``w`` a faithful measure of
-sharpness: the features are independent, so ``Var(w . z) = ||w||^2`` exactly, and
-a rotation that preserves ``||w||`` preserves the steepness of the decision
-boundary regardless of which direction it turns towards. Drift is a rotation of
-``w`` by ``theta = level * pi / 2`` in a fixed two-dimensional plane, at constant
-norm; ``level = 0`` leaves the feature-label relationship untouched and
-``level = 1`` makes the late rule orthogonal to the early one, that is, fully
-replaced. Samples dated before the cut carry the early rule, samples dated at or
-after it carry the rotated one.
-
-Why the four controls are null here
------------------------------------
-========== ====================================================================
-Control    Why it has nothing to act on
-========== ====================================================================
-a1_prior   Labels are assigned by thresholding the latent score at the
-           within-year median, so every year carries exactly the reference base
-           rate. ``match_class_prior`` therefore returns a weight vector of
-           ones and the weighted metric equals the unweighted one.
-a2_labels  ``ransomware_family`` takes two values, both present in every window,
-           so ``restrict_label_space`` removes nothing.
-b1_fs      ``n_features`` is set to the full feature count, so
-           ``select_features`` short-circuits and returns every column whatever
-           rows it is fitted on. The selection cannot depend on the test half
-           because there is no selection.
-b2_axis    ``Year`` is set equal to ``first_submission_date_year``, so the two
-           axes induce byte-identical splits.
-========== ====================================================================
-
-The features are drawn from one distribution for the whole panel, so there is no
-covariate shift either: only ``P(y | x)`` moves, which is concept drift in the
-strict sense.
-
-Usage
------
-Run the ladder from the repository root::
-
-    python -m sift.driftsim
-
-This module writes only under ``results/driftsim/``. It defines no control, no
-metric and no split; it assembles the existing ones.
 """
 
 from __future__ import annotations
@@ -142,9 +85,7 @@ METRIC: str = "macro_f1"
 NULL_TOLERANCE: float = 1e-6
 
 
-# --------------------------------------------------------------------------
-# Specification
-# --------------------------------------------------------------------------
+# --- Specification ----------------------------------------------------------
 @dataclass(frozen=True)
 class DriftSpec:
     """Everything that defines one synthetic drift panel.
@@ -156,11 +97,10 @@ class DriftSpec:
     n_features : int, default 100
         Number of binary features ``d``.
     samples_per_year : int, default 300
-        Rows per year, identical for every year. Holding it constant removes a
-        second confound that the lattice does not model: a window whose sample
-        count moves with time would make the temporal and matched designs differ
-        in ways unrelated to drift. Must be even, so that the reference base rate
-        of one half is reachable exactly.
+        Rows per year, identical for every year. Holding it constant removes a second
+        confound that the lattice does not model: a window whose sample count moves with
+        time would make the temporal and matched designs differ in ways unrelated to
+        drift.
     year_min, year_max : int, default 2012 and 2023
         Inclusive bounds of the synthetic panel's year range.
     cut_year : int, default 2018
@@ -171,9 +111,8 @@ class DriftSpec:
     base_rate : float, default 0.5
         Positive rate, held exactly constant in every year.
     signal_sd : float, default 3.0
-        ``||w||``, which in standardised coordinates is exactly the standard
-        deviation of the linear predictor. Held constant across the rotation, so
-        the sharpness of the decision rule does not move with the drift level.
+        ``||w||``, which in standardised coordinates is exactly the standard deviation
+        of the linear predictor.
     seed : int, default 0
         Seed of the generator. Distinct from the experiment seeds, which vary
         the split draw rather than the data.
@@ -239,9 +178,7 @@ class DriftSpec:
         return int(self.years.size) * int(self.samples_per_year)
 
 
-# --------------------------------------------------------------------------
-# Bernoulli parameters from the real panel
-# --------------------------------------------------------------------------
+# --- Bernoulli parameters from the real panel -------------------------------
 @lru_cache(maxsize=1)
 def mlran_marginals(data_dir: Path = MLRAN_DIR) -> numpy.ndarray:
     """Return the marginal activation frequency of every real MLRan feature.
@@ -299,9 +236,7 @@ def feature_probabilities(
     return numpy.clip(numpy.sort(drawn), 0.01, 0.99)
 
 
-# --------------------------------------------------------------------------
-# The rotation
-# --------------------------------------------------------------------------
+# --- The rotation -----------------------------------------------------------
 def rotation_basis(n_features: int, seed: int) -> tuple[numpy.ndarray, numpy.ndarray]:
     """Return the orthonormal plane the weight vector rotates in.
 
@@ -341,8 +276,7 @@ def drift_weights(spec: DriftSpec) -> tuple[numpy.ndarray, numpy.ndarray]:
     -------
     w_early, w_late : numpy.ndarray
         Two vectors of identical Euclidean norm ``spec.signal_sd``, separated by
-        ``spec.theta`` radians. At ``drift_level == 0`` they are equal; at
-        ``drift_level == 1`` their inner product is zero.
+        ``spec.theta`` radians.
     """
     u, v = rotation_basis(spec.n_features, spec.seed)
     theta = spec.theta
@@ -386,9 +320,7 @@ def rule_disagreement(
     return float(numpy.mean((z @ w_early > 0.0) != (z @ w_late > 0.0)))
 
 
-# --------------------------------------------------------------------------
-# The panel
-# --------------------------------------------------------------------------
+# --- The panel --------------------------------------------------------------
 def generate_panel(
     spec: DriftSpec,
     probabilities: numpy.ndarray | None = None,
@@ -527,9 +459,7 @@ def base_config(spec: DriftSpec, model_name: str = DEFAULT_MODEL) -> ExperimentC
     )
 
 
-# --------------------------------------------------------------------------
-# The null-by-construction guarantee, checked rather than asserted in prose
-# --------------------------------------------------------------------------
+# --- The null-by-construction guarantee, checked rather than asserted in prose ---
 def assert_controls_are_null(
     panel: pandas.DataFrame,
     spec: DriftSpec,
@@ -608,9 +538,7 @@ def assert_controls_are_null(
     return {"max_weight_deviation": worst}
 
 
-# --------------------------------------------------------------------------
-# Running one level
-# --------------------------------------------------------------------------
+# --- Running one level ------------------------------------------------------
 @contextmanager
 def _cache_dir(path: Path) -> Iterator[Path]:
     """Point the fit cache at a private directory for the duration of the block.
@@ -864,9 +792,7 @@ def _baseline_gap(frame: pandas.DataFrame, model_name: str, cut: int) -> float:
     return float(reference) - float(temporal)
 
 
-# --------------------------------------------------------------------------
-# The ladder
-# --------------------------------------------------------------------------
+# --- The ladder -------------------------------------------------------------
 def run_ladder(
     levels: Sequence[float] = DEFAULT_LEVELS,
     template: DriftSpec | None = None,
@@ -893,8 +819,8 @@ def run_ladder(
     results_dir : pathlib.Path, optional
         Output directory, defaulting to :data:`DRIFTSIM_DIR`.
     probabilities : numpy.ndarray, optional
-        Bernoulli parameters, shared by every level so that the levels differ in
-        the label rule alone. Defaults to the real MLRan marginals.
+        Bernoulli parameters, shared by every level so that the levels differ in the
+        label rule alone.
 
     Returns
     -------

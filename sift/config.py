@@ -3,10 +3,6 @@
 This module holds dataclasses only. It imports nothing from :mod:`sift`, which
 keeps the dependency graph acyclic and lets any other module accept a
 configuration object without risking a circular import.
-
-Every configuration object is frozen. Variants are produced with
-:func:`dataclasses.replace`, never by mutation, so a configuration recorded
-alongside a result cannot have been altered after the fit.
 """
 
 from __future__ import annotations
@@ -59,19 +55,15 @@ class ControlFlags:
     ----------
     a1_prior : bool, default False
         When ``False`` the class distribution of each window is left as observed.
-        When ``True`` samples are weighted so the effective class prior matches
-        the random-split reference prior.
     a2_labels : bool, default False
         When ``False`` the test window keeps families never seen in training.
         When ``True`` the label space is restricted to families present in the
         training half of the same cut.
     b1_fs : bool, default False
-        When ``False`` feature selection is fitted on the whole panel, which
-        leaks test information. When ``True`` it is fitted on the training half
-        of the cut only.
+        When ``False`` feature selection is fitted on the whole panel, which leaks test
+        information.
     b2_axis : bool, default False
         When ``False`` the split uses the compile timestamp, the erroneous axis.
-        When ``True`` it uses the first-submission date.
     """
 
     a1_prior: bool = False
@@ -133,7 +125,7 @@ class ControlFlags:
 class LatticeCell:
     """One of the sixteen configurations, with the reading it must be given.
 
-    Section 8.1 of the design document requires the sixteen cells to be written
+    The sixteen cells are written
     out rather than left implicit in a bit pattern, because several combinations
     are ambiguous until someone states what they mean. The clearest example is
     cell 4, feature selection done correctly on a time axis that is wrong.
@@ -299,27 +291,17 @@ class PanelSpec:
     Parameters
     ----------
     task : {'family', 'binary'}, default 'family'
-        ``'family'`` keeps ransomware only and restricts to families with at
-        least ``min_class_size`` samples. ``'binary'`` keeps goodware and
-        ransomware and applies no class-size filter.
+        ``'family'`` keeps ransomware only and restricts to families with at least
+        ``min_class_size`` samples.
     year_min, year_max : int, default 2012 and 2024
-        Inclusive bounds of the analysis window on the primary temporal axis.
-        The two bounds are set for different reasons. The lower bound is a
-        sample-count bound: 2006 to 2011 carry 3, 15, 33, 119, 79 and 108
-        samples, too few to support a cut. The upper bound is simply the end of
-        the dataset; MLRan holds nothing after it. Note that 2024 is a partial
-        collection year: its 263 samples run from January to a last first
-        submission on 25 July 2024, with only 5 of them in July, so collection
-        effectively stops at the end of June. The year is kept because 263
-        samples is far above the sample-count floor that motivates the lower
-        bound, but any per-year rate read off 2024 covers half a year.
+        Inclusive bounds of the analysis window on the primary temporal axis. The two
+        bounds are set for different reasons.
     drop_empty : bool, default True
         Drop samples activating no feature. Such rows carry no behavioural
         information and would otherwise inflate goodware performance.
     dedup_exact : bool, default True
         Collapse groups sharing an identical feature vector, keeping the earliest
-        member. Near-duplicates spread across years otherwise leak across any
-        temporal boundary.
+        member.
     min_class_size : int, default 20
         Minimum family size for the family task.
     primary_axis : str, default 'first_submission_date_year'
@@ -375,53 +357,16 @@ class SplitSpec:
     features, models and hyperparameters are identical, so the measured gap is
     attributable to the split alone.
 
-    Four designs are defined, forming a chain in which each consecutive pair
-    differs in exactly one respect:
-
-    - ``'random'`` against ``'random_matched'`` differ only in training-set size.
-    - ``'random_matched'`` against ``'random_fully_matched'`` differ only in the
-      class composition of the test window, and therefore in ``k_test``.
-    - ``'random_fully_matched'`` against ``'temporal'`` differ only in time order.
-
-    The chain yields three quantities that must be reported before the lattice
-    runs, since none of them is a lattice control and all three would otherwise
-    land in the residual the analysis wants to read as concept drift::
-
-        size effect              = Delta(random) - Delta(random_matched)
-        class-composition effect = Delta(random_matched) - Delta(random_fully_matched)
-        remainder                = Delta(random_fully_matched)
-
-    Both intermediate designs are needed. At the earliest cut the temporal design
-    trains on roughly a fifth of what a 75/25 split provides, so a naive gap
-    conflates the model's inability to see the future with its having far less
-    data. Matching sizes alone is not enough either: the temporal test window
-    covers only the families that existed by then, so its macro average is taken
-    over far fewer classes than a random draw's. Section 5 of the contract pins
-    ``labels`` precisely to stop two designs averaging over different class
-    counts, and matching sizes without matching the class pool would reintroduce
-    exactly that.
-
     Parameters
     ----------
     design : {'temporal', 'random', 'random_matched', 'random_fully_matched'}
         ``'temporal'`` trains on everything before ``cut_year`` and tests on the
-        following ``test_window`` years. ``'random'`` draws a stratified random
-        split and serves as the naive reference design. ``'random_matched'``
-        draws a random split whose two halves hold exactly as many samples as the
-        temporal split at the same cut under the same control flags.
-        ``'random_fully_matched'`` additionally restricts its test-half candidate
-        pool to the families actually present in that temporal test window, so
-        ``k_test`` matches as well. Default ``'temporal'``.
+        following ``test_window`` years.
     cut_year : int or None, default None
         First year of the test window. Required for ``'temporal'`` and for both
         matched designs, which read the temporal split at the same cut.
     test_window : int, default 3
-        Length of the test window in years, clipped at the end of the analysis
-        window. Three is the convention of the detailed Delta table, where the
-        windows overlap and the last one is truncated. The AUT computation needs
-        four disjoint windows of equal width instead and must pass ``2``
-        explicitly, because the trapezoidal average is undefined for unequal or
-        overlapping slots.
+        Length of the test window in years, clipped at the end of the analysis window.
     test_size : float, default 0.25
         Test fraction for the ``'random'`` design. Ignored by the other two,
         which take their sizes from the data.
@@ -535,24 +480,19 @@ class ExperimentConfig:
         return hashlib.blake2b(payload.encode("utf-8"), digest_size=8).hexdigest()
 
 
-# ===========================================================================
-# C1: deduplication as an opt-in fifth control
-# ===========================================================================
+# --- C1: deduplication as an opt-in fifth control ---------------------------
 #
-# Everything above this line is the four-control lattice and is frozen. The
-# design document pre-registered reporting exact-duplicate removal separately;
-# it never was. Measured facts that force the issue: between 7.3 and 35.4 per
-# cent of test-window samples have an exact duplicate in the training window,
-# depending on the cut point, and turning the collapse off moves the reported
-# gap by 0.114 -- the same order as phi_A2 = 0.128. A quantity that large
-# cannot sit inside "fixed preprocessing" and be left out of the attribution;
-# it is currently hidden inside the residual the paper reads as concept drift.
+# Everything above this line is the four-control lattice and is frozen.
+# Depending on the cut, 0.4 to 28.7 per cent of test-window samples have an
+# exact duplicate in the training window, and turning the collapse off moves
+# the reported gap by 0.069, the same order as phi_A2 at 0.123. A quantity that
+# large cannot sit inside fixed preprocessing and be left out of the
+# attribution.
 #
-# The extension is strictly additive. ``ControlFlags``, ``CONTROL_NAMES``,
-# ``LATTICE_CELLS`` and ``lattice_cell`` are untouched, so ``config_id`` in
-# ``results/metrics.parquet`` keeps its four-flag meaning and ``sift.shapley``,
-# ``sift.reporting`` and the notebooks keep reading it. A five-control run is
-# reached only by explicitly asking for it.
+# The extension is strictly additive. ``ControlFlags``, ``CONTROL_NAMES`` and
+# ``LATTICE_CELLS`` are untouched, so ``config_id`` in
+# ``results/metrics.parquet`` keeps its four-flag meaning. A five-control run
+# is reached only by asking for it by name.
 
 #: Name of the fifth control.
 C1_NAME: str = "c1_dedup"
@@ -564,13 +504,11 @@ CONTROL_NAMES_C1: tuple[str, ...] = CONTROL_NAMES + (C1_NAME,)
 
 #: Two-tier taxonomy for the Owen value once C1 is a player.
 #:
-#: C1 is protocol-side. Leaving exact duplicates of training samples in the
-#: test window is not a property of the malware stream that a deployed detector
-#: would face; it is an artefact of how the corpus was assembled and of the
-#: experimenter's failure to remove it. It is an error in the measurement, in
-#: the same sense as fitting the feature selector on the whole panel (B1) or
-#: ordering samples by an attacker-controlled timestamp (B2). The data-side
-#: tier keeps its two members, so the two tiers become 2 and 3 players wide.
+#: C1 is protocol-side: exact duplicates of training samples in the test window
+#: are an artefact of how the corpus was assembled, not a property of the
+#: malware stream a deployed detector would face. That places it with B1 and
+#: B2. The data-side tier keeps its two members, so the tiers become 2 and 3
+#: players wide.
 TIER_GROUPS_C1: tuple[tuple[str, ...], ...] = (
     ("a1_prior", "a2_labels"),
     ("b1_fs", "b2_axis", C1_NAME),
@@ -587,28 +525,13 @@ class ExtendedControlFlags:
     would silently renumber a published table. This class is opt-in: nothing in
     the four-control path constructs one.
 
-    As with :class:`ControlFlags`, ``False`` is the flawed practice and ``True``
-    is the correction, so an all-``False`` instance is the naive baseline and
-    :meth:`to_index` returns 0 for it.
-
     Parameters
     ----------
     a1_prior, a2_labels, b1_fs, b2_axis : bool, default False
         Exactly as in :class:`ControlFlags`.
     c1_dedup : bool, default False
-        When ``False`` groups of samples sharing an identical feature vector
-        are left in place, so a test-window sample can be an exact copy of a
-        training sample. This is the flawed protocol. When ``True`` each group
-        is collapsed to its earliest member, which is what :class:`PanelSpec`
-        has always done.
-
-    Notes
-    -----
-    The default is ``c1_dedup=False`` so that ``ExtendedControlFlags()`` is
-    coalition 0, consistent with ``ControlFlags()``. It is therefore **not** the
-    current production behaviour, which is C1 on. Use
-    ``ExtendedControlFlags.from_flags(flags, c1_dedup=True)`` to lift an
-    existing four-control cell into the extended lattice unchanged.
+        When ``False`` groups of samples sharing an identical feature vector are left in
+        place, so a test-window sample can be an exact copy of a training sample.
     """
 
     a1_prior: bool = False
@@ -799,13 +722,6 @@ def config_for_cell_c1(
     ExperimentConfig
         A four-control configuration whose ``flags`` is ``flags.base()`` and
         whose ``panel.dedup_exact`` carries the state of C1.
-
-    Notes
-    -----
-    The projection is total and lossless: :func:`extended_flags_of` recovers
-    ``flags`` from the result. That is what lets a five-control run go through
-    the unmodified ``run_cell``, ``apply_controls`` and cache path -- C1 is not
-    an extra step inside the pipeline, it is a different panel.
     """
     return replace(
         base,

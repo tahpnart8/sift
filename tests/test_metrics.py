@@ -109,7 +109,7 @@ def test_a_perfect_prediction_scores_one_on_every_metric() -> None:
 
 
 def test_macro_f1_and_balanced_accuracy_diverge_on_a_skewed_panel() -> None:
-    """A regression guard for the pilot finding of macro-F1 0.244 vs bal-acc 0.471.
+    """A regression guard for the finding of macro-F1 0.244 against bal-acc 0.471.
 
     Six classes, one dominant.  Every rare class is recalled perfectly but with
     precision 1/20, and the dominant class is recalled at 0.05 with precision 1.

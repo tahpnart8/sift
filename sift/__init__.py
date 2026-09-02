@@ -3,18 +3,6 @@
 SIFT decomposes the performance drop between a random split and a temporal split
 into evaluation confounds and genuine concept drift. Four controls form a
 :math:`2^4` ablation lattice whose cells are aggregated with exact Shapley values.
-
-Notebooks orchestrate; they do not define. Import the verbs from here and keep
-the logic in the package::
-
-    from sift import build_panel, load_mlran, PanelSpec
-
-    raw = load_mlran()
-    panel, provenance = build_panel(raw, PanelSpec(task="family"))
-
-Modules import strictly downward: :mod:`sift.config` imports nothing from the
-package, and :mod:`sift.experiment` may import anything. No module writes files
-except :mod:`sift.reporting`.
 """
 
 from __future__ import annotations

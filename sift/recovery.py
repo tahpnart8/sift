@@ -8,96 +8,6 @@ difference that happens to travel with it. This module closes that gap by the
 only route available: build panels in which the ground truth is known by
 construction, run the same decomposition, and ask whether the attribution lands
 on the control that was actually injected.
-
-Method
-------
-Every recovery panel starts from the real MLRan analysis panel and first
-*destroys the temporal signal*. Each family's rows are re-dealt at random over
-three temporal zones -- training years, test-window years, and years after the
-window -- in family-independent proportions. After that re-assignment the year
-columns are independent of the label and of the features, so genuine drift and
-all four evaluation confounds are absent by construction and the null panel's
-decomposition measures nothing but noise.
-
-The re-assignment is *stratified*, that is, every family is dealt into the three
-zones in the same proportions. A plain unstratified permutation would leave one
-systematic asymmetry standing: the temporal arm would be an unstratified draw
-while the ``random_fully_matched`` reference arm is a stratified one, so families
-unlucky in the permutation would carry less training support in the temporal arm
-alone. That asymmetry is not one of the four controls, and on this panel it moves
-``v(N)`` by about 0.02 on its own, which is the same order as the effects being
-recovered. Stratifying the null removes it, which is what makes the null panel a
-usable noise floor rather than a second confound.
-
-Exactly one confound is then injected per panel, at a magnitude that is measured
-back off the realised panel rather than assumed:
-
-``a1_only``
-    The rows dealt into the test window are drawn per family towards a skewed
-    target distribution while the training half is held at the corpus
-    distribution, so the window's class prior departs from the corpus prior and
-    nothing else does. Magnitude: total-variation distance between the two.
-
-    That distance is the magnitude the control is *defined* on, and it turned out
-    not to be the magnitude the control can *act* on. Control A1 weights each
-    test row by its true class alone, which leaves every per-class recall exactly
-    unchanged; all it can move is the weight the class average places on each
-    class. Under ``accuracy`` that shift is
-    ``sum_c (reference_c - window_c) * recall_c``, a covariance between the skew
-    and per-class difficulty rather than a distance, and under ``macro_f1`` even
-    that route is closed because the macro average already weights the classes
-    equally. The first version of this panel boosted every second family in
-    alphabetical order, reaching a total variation of 0.244 whose correlation
-    with per-class recall was 0.009, and recovered nothing: ``phi_a1 = +0.006``
-    with an interval covering zero. Boosting the smaller half of the families
-    instead reaches the same distance, 0.259, aligned with difficulty, and
-    recovers ``phi_a1 = +0.011`` with an interval that excludes zero. See
-    :data:`A1_ALIGNMENTS` and :func:`_skewed_distribution`.
-``a2_only``
-    The ``k`` smallest families are dealt entirely into the test window, so they
-    exist only after the cut on both axes. Magnitude: the share of test-window
-    rows belonging to a family absent from the training half.
-``b1_only``
-    Decoy feature columns are added that are a deterministic function of the
-    class on test-window rows and near-constant noise everywhere else. Fitting
-    the selector on the whole panel therefore buys them into the feature budget,
-    where they are dead weight for a model trained on pre-cut rows alone; fitting
-    it on the training half rejects them. Magnitude: decoy columns as a share of
-    the feature budget.
-``b2_only``
-    The secondary axis is re-dealt independently of the primary one, towards a
-    training half whose class composition is skewed while its test window stays
-    at the corpus prior. Splitting on that axis therefore trains on a distorted
-    class support without any novelty or prior shift in the window. Magnitude:
-    the share of rows whose secondary-axis zone differs from their primary-axis
-    zone.
-``a2_b2``
-    Both of the above at the same magnitudes, which is the panel on which the
-    A2-by-B2 Harsanyi dividend reported on real data must reappear if that
-    finding is about the data rather than about the estimator.
-
-Cost
-----
-One model (``logreg``, which the metrics show is exactly deterministic across
-seeds), three seeds, one cut point: ``16 coalitions x 2 arms x 3 seeds = 96``
-fits per panel. The full 3400-fit lattice is deliberately not re-run.
-
-Notes
------
-Only :func:`write_recovery` touches the filesystem, and only under
-``results/recovery/``. The package rule that no module but :mod:`sift.reporting`
-writes files is relaxed here by explicit instruction, and is confined to that one
-function so that every other entry point stays pure.
-
-One operational consequence has to be stated because it costs compute rather
-than correctness. :func:`sift.cache.code_version` hashes every ``sift/*.py``
-outside :data:`sift.cache.NON_FIT_MODULES`, and that exclusion list does not name
-this module. Adding this file therefore changed the code version and invalidated
-every entry in ``results/fit_cache``, which is roughly 3,400 production fits.
-Nothing this module does can change how a fit is computed -- it only builds
-panels, and a panel already enters the key through its own fingerprint -- so
-``"recovery.py"`` belongs in that exclusion list. Adding it there is a one-line
-change to :mod:`sift.cache`, which this module does not own.
 """
 
 from __future__ import annotations
@@ -198,12 +108,11 @@ TIER_GROUPS: tuple[tuple[str, ...], ...] = (("a1_prior", "a2_labels"), ("b1_fs",
 
 #: How the A1 target distribution chooses which families to boost.
 #:
-#: ``"name"`` boosts every second family in alphabetical order. That is an
-#: arbitrary pairing with respect to how hard a family is to classify, which is
-#: the property the resulting recovery check turned out to depend on.
-#: ``"size"`` boosts the smaller half of the families instead, so the window
-#: over-represents exactly the families that carry the least training support and
-#: are therefore the hardest. See :func:`_skewed_distribution`.
+#: ``"name"`` boosts every second family in alphabetical order, an arbitrary
+#: pairing with respect to how hard a family is to classify, which is the
+#: property the recovery check turned out to depend on. ``"size"`` boosts the
+#: smaller half instead, so the window over-represents the families with the
+#: least training support. See :func:`_skewed_distribution`.
 A1_ALIGNMENTS: tuple[str, ...] = ("name", "size")
 
 #: What ``injected_magnitude`` means for each control.
@@ -227,42 +136,25 @@ class InjectionSpec:
     test_window : int, default 3
         Width of the test window in years.
     n_train, n_test : int, default 520 and 500
-        Target sizes of the training half and the test window. They are set
-        directly rather than inherited from the MLRan year histogram because the
-        remaining rows form the reservoir that lets a class-composition skew be
-        injected into one half without forcing the opposite skew into the other.
-        Their sum leaves 405 of 1425 rows outside both halves.
+        Target sizes of the training half and the test window. They are set directly
+        rather than inherited from the MLRan year histogram because the remaining rows
+        form the reservoir that lets a class-composition skew be injected into one half
+        without forcing the opposite skew into the other.
     a1_skew : float, default 3.0
         Odds multiplier applied to half the families when building the target
         class distribution of the test window.
     a1_align : {'name', 'size'}, default 'name'
-        Which half of the families the multiplier is applied to. Under ``'name'``
-        it is every second family in alphabetical order, which is the original
-        setting and is uncorrelated with how hard a family is. Under ``'size'``
-        it is the smaller half, so the injected prior shift is aligned with
-        per-class difficulty. Control A1 reweights samples by their true class,
-        which leaves every per-class recall exactly unchanged, so the only thing
-        A1 can move in a class-averaged metric is the weight the average places
-        on each class. A skew orthogonal to per-class performance therefore has
-        no metric consequence however large its total-variation distance.
+        Which half of the families the multiplier is applied to. Under ``'name'`` it is
+        every second family in alphabetical order, which is the original setting and is
+        uncorrelated with how hard a family is.
     a2_families : int, default 6
         Number of families dealt entirely into the test window.
     b1_decoys : int, default 100
         Number of decoy feature columns added.
     b1_decoy_levels : int, default 4
         Number of distinct non-zero values a decoy takes inside the test window.
-        A binary decoy will not do. A binary column that is a function of the
-        class on a third of the rows and a coin flip elsewhere carries only about
-        0.07 nats of mutual information with the label, because conditioning on
-        the class does not reveal which rows are the informative ones; that is
-        far below the 0.126 nats the two-hundredth real MLRan feature carries, so
-        the selector would never buy it and the injection would be null. Four
-        levels plus a mostly-zero off-window value lifts it to about 0.37 nats,
-        above the strongest real feature.
     b1_decoy_noise : float, default 0.1
         Probability that a decoy takes a non-zero value outside the test window.
-        Keeps the column from being exactly constant on the temporal training
-        half without making it informative there.
     b2_skew : float, default 3.0
         Odds multiplier applied to half the families when building the target
         class composition of the secondary-axis training half.
@@ -353,9 +245,8 @@ class RecoveryPanel:
     injected : tuple of str
         Names of the controls that were actually injected. The ground truth.
     magnitude : dict of {str: float}
-        Measured magnitude of all four confounds on this panel, whether injected
-        or not, keyed by control name. The three that were not injected are the
-        construction's own selectivity evidence.
+        Measured magnitude of all four confounds on this panel, whether injected or not,
+        keyed by control name.
     diagnostics : dict of {str: float}
         Panel-level descriptive numbers: half sizes, class counts, and the
         secondary-axis measurements where they differ from the primary ones.
@@ -368,9 +259,7 @@ class RecoveryPanel:
     diagnostics: dict[str, float]
 
 
-# ---------------------------------------------------------------------------
-# Zone dealing
-# ---------------------------------------------------------------------------
+# --- Zone dealing -----------------------------------------------------------
 
 
 def _zone_years(spec: InjectionSpec, years: pandas.Series) -> dict[str, numpy.ndarray]:
@@ -437,8 +326,8 @@ def _deal_zones(
     target : str
         Label column defining the families.
     test_share, train_share : Mapping
-        Per-family fraction of that family's rows to place in the test window and
-        in the training half. Whatever remains lands in the post-window zone.
+        Per-family fraction of that family's rows to place in the test window and in the
+        training half.
     rng : numpy.random.Generator
         Source of the within-family shuffle.
     priority : {'test', 'train'}, default 'test'
@@ -533,22 +422,6 @@ def _skewed_distribution(
     ``prior`` while differing entirely in what a class-prior control can do about
     them, and that distinction is the substance of this parameter rather than a
     detail of it.
-
-    Control A1 attaches a weight to each test row that depends only on that row's
-    true class. Per-class recall is therefore exactly invariant under it: every
-    row of class ``c`` carries the same weight, so that weight cancels between
-    the numerator and the denominator of ``TP_c / n_c``. What A1 can move is only
-    the weight the class average places on each class. Under ``accuracy`` that
-    is the whole of the metric, which becomes ``sum_c reference_c * recall_c``
-    instead of ``sum_c empirical_c * recall_c``, so A1 moves it by
-    ``sum_c (reference_c - empirical_c) * recall_c``. That quantity is a
-    covariance between the injected skew and per-class difficulty, not a distance
-    between two distributions: a skew placed on families of average difficulty
-    leaves it at zero no matter how far the two distributions are apart.
-    Alphabetical order is such a placement. Under ``macro_f1`` even this route is
-    closed, because the macro average already weights every class equally, and
-    the only remaining channel is the shift in per-class precision, whose
-    denominator mixes rows of several true classes.
     """
     if align not in A1_ALIGNMENTS:
         raise ValueError(f"align must be one of {A1_ALIGNMENTS}, got {align!r}")
@@ -585,9 +458,7 @@ def _shares_for_distribution(
     return shares
 
 
-# ---------------------------------------------------------------------------
-# Panel construction
-# ---------------------------------------------------------------------------
+# --- Panel construction -----------------------------------------------------
 
 
 def _blank_panel(panel: pandas.DataFrame) -> pandas.DataFrame:
@@ -754,12 +625,6 @@ def _add_decoys(
     fitted on the training half alone it sees noise. The model, trained on
     pre-cut rows, can never use one, so every budget slot a decoy takes is a slot
     the temporal arm loses.
-
-    The decoy is not required to look like an MLRan feature, and it does not: the
-    real columns are binary. It is an instrument, and its only requirement is
-    that its whole-panel mutual information clear the budget cut-off while its
-    training-half mutual information does not. A binary decoy fails the first
-    half of that requirement; see :class:`InjectionSpec`.
     """
     target = panel_spec.target_column
     years = frame[panel_spec.primary_axis].to_numpy()
@@ -875,9 +740,7 @@ def build_recovery_panel(
     )
 
 
-# ---------------------------------------------------------------------------
-# Measuring what is in a panel
-# ---------------------------------------------------------------------------
+# --- Measuring what is in a panel -------------------------------------------
 
 
 def _halves(
@@ -922,12 +785,6 @@ def confound_diagnostics(
         One entry per control name in :data:`sift.config.CONTROL_NAMES`.
     diagnostics : dict of {str: float}
         Half sizes, class counts and the secondary-axis readings.
-
-    Notes
-    -----
-    A1 and A2 are measured on the primary axis, because that is the axis the
-    ground truth was written on. B2 is measured as the disagreement between the
-    two axes, which is the only sense in which the secondary axis can be wrong.
     """
     target = panel_spec.target_column
     primary, secondary = panel_spec.primary_axis, panel_spec.secondary_axis
@@ -1124,9 +981,7 @@ def per_class_dispersion(
     return out
 
 
-# ---------------------------------------------------------------------------
-# Running the lattice on one panel
-# ---------------------------------------------------------------------------
+# --- Running the lattice on one panel ---------------------------------------
 
 
 @contextlib.contextmanager
@@ -1187,13 +1042,6 @@ def lattice_metrics(
     predictions : dict
         Stored predictions keyed by ``(design, config_id, seed)``, so the
         bootstrap can resample the same test windows the point estimates used.
-
-    Notes
-    -----
-    Every fit goes through :func:`sift.experiment.run_cell`, the same entry point
-    the production lattice uses. Re-implementing the fit here would leave the
-    recovery check validating a different pipeline from the one the paper
-    reports, which is the one failure mode this module exists to rule out.
     """
     panel = recovery_panel.panel
     digest = panel_fingerprint(panel)
@@ -1226,9 +1074,7 @@ def lattice_metrics(
     return pandas.DataFrame(rows), predictions
 
 
-# ---------------------------------------------------------------------------
-# Bootstrap
-# ---------------------------------------------------------------------------
+# --- Bootstrap --------------------------------------------------------------
 
 
 def rebuild_test_weights(
@@ -1321,9 +1167,7 @@ def _values_from_scores(
     return {key: baseline - gap for key, gap in gaps.items()}, baseline
 
 
-# ---------------------------------------------------------------------------
-# Recovery
-# ---------------------------------------------------------------------------
+# --- Recovery ---------------------------------------------------------------
 
 
 def recover(
@@ -1356,16 +1200,6 @@ def recover(
     dict
         ``phi``, ``phi_ci``, ``dividends``, ``dividend_ci``, ``delta_empty``,
         ``v_full``, ``residual`` and ``checks_passed``.
-
-    Notes
-    -----
-    The interval is a percentile bootstrap over test rows, propagated through the
-    whole decomposition: each replicate rebuilds all sixteen coalition values
-    from that replicate's resampled scores and is then run through
-    :func:`sift.shapley.exact_shapley` in full. Bootstrapping ``phi`` directly
-    rather than bootstrapping each ``v(S)`` and combining the intervals is the
-    only route that respects the fact that the sixteen values are not
-    independent.
     """
     point: dict[tuple[str, int], float] = {}
     for (design, config_id), block in metrics.groupby(["design", "config_id"], sort=True):
@@ -1420,9 +1254,7 @@ def recover(
     }
 
 
-# ---------------------------------------------------------------------------
-# Orchestration
-# ---------------------------------------------------------------------------
+# --- Orchestration ----------------------------------------------------------
 
 
 def run_recovery(
@@ -1536,9 +1368,7 @@ def run_recovery(
     }
 
 
-# ---------------------------------------------------------------------------
-# Output
-# ---------------------------------------------------------------------------
+# --- Output -----------------------------------------------------------------
 
 COMPRESSION: str = "zstd"
 COMPRESSION_LEVEL: int = 3

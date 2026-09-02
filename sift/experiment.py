@@ -1,15 +1,6 @@
 """Execution layer: one lattice cell, and the full 16-coalition lattice.
 
 Two invariants drive every design decision in this module.
-
-First, **the lattice must be complete**. Exact Shapley values are defined only
-over a total value function, so all sixteen coalitions must yield a value for
-every (cut, design, model, seed) group. A cell that cannot be evaluated raises
-:class:`LatticeCellError`; it is never skipped, never filled with a default.
-
-Second, **metrics are recomputed from stored predictions**. The metric columns
-written to ``metrics.parquet`` exist to catch drift between the two tables, not
-to be the source of truth for the paper.
 """
 
 from __future__ import annotations
@@ -46,30 +37,23 @@ from sift.seeding import derive_seed
 
 try:  # CONTROL_NAMES is fixed by the contract; its home module is not.
     from sift.config import CONTROL_NAMES
-except ImportError:  # pragma: no cover - resolved once E1 settles the module
+except ImportError:  # pragma: no cover
     from sift.controls import CONTROL_NAMES  # type: ignore[no-redef]
 
 
-# --------------------------------------------------------------------------
-# Constants fixed by the contract
-# --------------------------------------------------------------------------
+# --- Constants fixed by the contract ----------------------------------------
 N_COALITIONS: int = 16
 
-# There is deliberately no module-level copy of SplitSpec.DESIGNS. What is
-# declared here is the *role* each design plays, which is a property of the
-# value function and not of the split machinery.
-#
-# The value function is gap-based:
+# What is declared here is the *role* each design plays, a property of the
+# value function rather than of the split machinery.
 #
 #     Delta(S) = M_reference(S) - M_temporal(S)
 #     v(S)     = Delta(empty) - Delta(S)
 #     R        = Delta(N)
 #
 # so v(empty) = 0 by construction and sum(phi_i) = v(N) gives the identity
-# Delta(empty) = sum(phi_i) + R. Both arms of Delta move with the coalition --
-# b2_axis changes which families the temporal window holds, and
-# random_fully_matched restricts its test pool to that family set -- so the
-# game needs all 16 coalitions on BOTH arms, and only on those two.
+# Delta(empty) = sum(phi_i) + R. Both arms move with the coalition, so the game
+# needs all 16 coalitions on BOTH arms, and only on those two.
 LATTICE_DESIGNS: tuple[str, ...] = ("temporal", "random_fully_matched")
 
 # These two exist solely to report the three-way decomposition of the gap
@@ -90,14 +74,12 @@ REFERENCE_ROLE: str = "reference"
 #: 32 classes. Hitting it is a design error in the cut-point choice, not a
 #: condition to route around.
 #:
-#: It is the *default*, overridable per call, because one legitimate
-#: measurement needs a smaller cell: the AUT slot table at the full coalition,
-#: where A2 shrinks the first slot to 16 test samples. That was ruled reportable
-#: per-slot with no aggregate, so the caller lowers the threshold explicitly and
-#: visibly rather than the guard being weakened for everyone.
+#: Overridable per call for the AUT slot table, where A2 shrinks the first slot
+#: to 16 test samples. The caller lowers it explicitly rather than the guard
+#: being weakened for everyone.
 MIN_TEST_SAMPLES: int = 20
 
-#: Measured on this machine in round 0, used only to order the work queue.
+#: Measured on the reference machine, used only to order the work queue.
 #: Keys are the identifiers in :data:`sift.models.MODEL_NAMES`.
 MEASURED_FIT_SECONDS: dict[str, float] = {
     "lightgbm": 18.0,
@@ -151,13 +133,6 @@ def assert_design_partition() -> None:
     ------
     ContractError
         When a design is unclassified, classified twice, or unknown.
-
-    Notes
-    -----
-    This is the guard that makes hard-coding the two role tuples safe. A design
-    added or renamed in :mod:`sift.config` fails here rather than being silently
-    dropped from the lattice, which is how the previous stale ``DESIGNS`` tuple
-    went unnoticed.
     """
     declared = set(SplitSpec.DESIGNS)
     lattice, reference = set(LATTICE_DESIGNS), set(REFERENCE_DESIGNS)
@@ -192,9 +167,7 @@ class IncompleteLatticeError(RuntimeError):
     """Raised when a group does not carry all sixteen coalitions."""
 
 
-# --------------------------------------------------------------------------
-# Parquet schemas, exactly as CONTRACT section 6
-# --------------------------------------------------------------------------
+# --- Parquet schemas, exactly as CONTRACT section 6 -------------------------
 PREDICTIONS_SCHEMA: pa.Schema = pa.schema(
     [
         ("fit_id", pa.string()),
@@ -236,9 +209,7 @@ METRICS_COLUMN_ORDER: tuple[str, ...] = tuple(METRICS_SCHEMA.names)
 PREDICTIONS_COLUMN_ORDER: tuple[str, ...] = tuple(PREDICTIONS_SCHEMA.names)
 
 
-# --------------------------------------------------------------------------
-# Adapters over signatures CONTRACT.md leaves unspecified
-# --------------------------------------------------------------------------
+# --- Adapters over signatures CONTRACT.md leaves unspecified ----------------
 _MODEL_FACTORY_NAMES: tuple[str, ...] = ("build_model", "make_model", "make_estimator")
 _METRIC_FUNCTION_NAMES: tuple[str, ...] = ("compute_metrics", "evaluate", "all_metrics")
 _DESIGN_FIELD_NAMES: tuple[str, ...] = ("design", "kind", "mode", "strategy")
@@ -361,9 +332,7 @@ def _normalise_metrics(raw: Mapping[str, Any]) -> dict[str, float]:
     return resolved
 
 
-# --------------------------------------------------------------------------
-# Config construction
-# --------------------------------------------------------------------------
+# --- Config construction ----------------------------------------------------
 def split_spec_for(base_split: Any, design: str, cut_year: int) -> Any:
     """Derive a SplitSpec for one design and cut from a base spec.
 
@@ -461,14 +430,6 @@ def label_categories(panel: pd.DataFrame, target: str) -> np.ndarray:
     -------
     numpy.ndarray
         Unique labels in ascending order.
-
-    Notes
-    -----
-    Codes in ``predictions.parquet`` are positions in this vocabulary. It is
-    derived from the whole panel, never from a single split, so that a code
-    means the same family in every one of the 16 coalitions and across both
-    designs. Recomputing it from ``results/panel.parquet`` reproduces the
-    mapping exactly.
     """
     return np.sort(panel[target].dropna().unique())
 
@@ -503,9 +464,7 @@ def describe_cell(cfg: ExperimentConfig) -> str:
     )
 
 
-# --------------------------------------------------------------------------
-# One cell
-# --------------------------------------------------------------------------
+# --- One cell ---------------------------------------------------------------
 def run_cell(
     panel: pd.DataFrame,
     cfg: ExperimentConfig,
@@ -521,10 +480,8 @@ def run_cell(
     cfg : ExperimentConfig
         Fully specified cell: controls, split, model and seed.
     panel_digest : str, optional
-        Fingerprint of ``panel``, when the caller has already computed it.
-        Omitted, it is derived from ``panel`` here. Supplying a digest that
-        does not describe ``panel`` mis-keys every fit of this cell, so pass it
-        only from a caller that hashed this exact frame.
+        Fingerprint of ``panel``, when the caller has already computed it. Omitted, it
+        is derived from ``panel`` here.
     min_test_samples : int, optional
         Floor on test-set size, defaulting to :data:`MIN_TEST_SAMPLES`. Lower
         it only for a measurement that has been ruled to need a smaller cell,
@@ -533,10 +490,8 @@ def run_cell(
     Returns
     -------
     dict
-        One tidy metrics row plus a ``predictions`` sub-dict of numpy arrays
-        holding ``sample_id``, ``grp_id``, ``y_true``, ``y_pred`` and
-        ``test_year``. ``run_id`` is not set here; the caller stamps it, so
-        that a cached record is never bound to the run that created it.
+        One tidy metrics row plus a ``predictions`` sub-dict of numpy arrays holding
+        ``sample_id``, ``grp_id``, ``y_true``, ``y_pred`` and ``test_year``.
 
     Raises
     ------
@@ -609,13 +564,11 @@ def run_cell(
             "where the strictest cell survives rather than dropping this one."
         )
 
-    # A1 is an intervention on the measurement, not on the learner. The
-    # confound it isolates is that a temporal test window carries a different
-    # class prior from the corpus the random reference draws on, so the control
+    # A1 is an intervention on the measurement, not on the learner, so it
     # belongs in the metric, where it reweights the test window to the reference
-    # prior. Reweighting the training set instead would be a mitigation, a
-    # different research question, and it would also make the control
-    # inexpressible for estimators whose fit takes no sample_weight.
+    # prior. Reweighting the training set would be a mitigation, a different
+    # question, and inexpressible for estimators whose fit takes no
+    # sample_weight.
     started = time.perf_counter()
     estimator.fit(X_train, y_train)
     fit_seconds = time.perf_counter() - started
@@ -660,9 +613,7 @@ def run_cell(
     return record
 
 
-# --------------------------------------------------------------------------
-# Worker plumbing
-# --------------------------------------------------------------------------
+# --- Worker plumbing --------------------------------------------------------
 @lru_cache(maxsize=2)
 def _panel_from_pickle(path: str) -> pd.DataFrame:
     # loky reuses worker processes, so the panel is unpickled once per worker
@@ -680,15 +631,7 @@ def _run_one(
 
 
 def _estimated_seconds(model_name: str, cut_year: int) -> float:
-    """Rank a job by expected cost so the queue runs longest-first.
-
-    Notes
-    -----
-    Cost is dominated by the model and by training-set size, and training size
-    grows monotonically with the cut year. Precision does not matter here; only
-    the ordering does, because a 23-second LightGBM fit stranded in the tail
-    costs more than a mis-ranked pair anywhere else.
-    """
+    """Rank a job by expected cost so the queue runs longest-first."""
     base = MEASURED_FIT_SECONDS.get(model_name, _DEFAULT_FIT_SECONDS)
     return base * max(int(cut_year) - 2011, 1)
 
@@ -723,17 +666,6 @@ def build_jobs(
     -----
     The 34 is deliberate and is not a loop bound that happens to come out that
     way. Per (cut, model, seed) the scope is:
-
-    - all 16 coalitions on ``temporal``,
-    - all 16 coalitions on ``random_fully_matched``,
-    - the baseline coalition **only** on ``random`` and ``random_matched``.
-
-    The first two are the arms of ``Delta(S)``, so the game needs every
-    coalition on each. The last two are reference measurements that report the
-    three-way decomposition of the gap; running them at all 16 coalitions would
-    be 30 wasted fits per group and would invite someone to feed a non-game
-    design to ``exact_shapley``. Enumerating the full cross product instead
-    would be 64 fits per group, or 6,400 over the lattice against 3,400 here.
     """
     assert_design_partition()
 
@@ -775,9 +707,7 @@ def build_jobs(
     return jobs
 
 
-# --------------------------------------------------------------------------
-# Table assembly and completeness checks
-# --------------------------------------------------------------------------
+# --- Table assembly and completeness checks ---------------------------------
 def _metrics_frame(records: Sequence[Mapping[str, Any]], run_id: str) -> pd.DataFrame:
     rows = []
     for record in records:
@@ -842,12 +772,6 @@ def assert_lattice_complete(metrics: pd.DataFrame) -> None:
     IncompleteLatticeError
         When a lattice design is short of, or duplicates, a coalition, or when
         a reference design carries anything other than the baseline coalition.
-
-    Notes
-    -----
-    Completeness is demanded of the two lattice designs only. The reference
-    designs are deliberately baseline-only, so requiring 16 of them would fail
-    every correct run.
     """
     for design in LATTICE_DESIGNS:
         arm = metrics.loc[metrics["design"] == design]
@@ -909,9 +833,7 @@ def _write_parquet(frame: pd.DataFrame, schema: pa.Schema, path: Path) -> Path:
     return path
 
 
-# --------------------------------------------------------------------------
-# Full lattice
-# --------------------------------------------------------------------------
+# --- Full lattice -----------------------------------------------------------
 def run_lattice(
     panel: pd.DataFrame,
     base: ExperimentConfig,
@@ -1042,20 +964,17 @@ def run_lattice(
     return metrics_frame
 
 
-# ===========================================================================
-# C1: the opt-in five-control lattice
-# ===========================================================================
+# --- C1: the opt-in five-control lattice ------------------------------------
 #
-# Nothing above this line changed. ``run_cell``, ``build_jobs``, ``run_lattice``
-# and ``METRICS_SCHEMA`` are the four-control path and stay the default; the
-# entry points below are reached only by a caller that asks for them by name.
+# Nothing above this line changed; the entry points below are reached only by a
+# caller that asks for them by name.
 #
-# The whole extension rests on one fact: C1 is a property of the *panel*, not a
-# step inside the pipeline. ``config_for_cell_c1`` turns an extended coalition
-# into an ordinary four-control ``ExperimentConfig`` whose ``PanelSpec`` carries
-# the state of C1, so every fit still goes through the unmodified ``run_cell``,
-# ``apply_controls`` and cache path. The only thing added afterwards is the
-# relabelling of ``config_id`` from 4 bits to 5.
+# The extension rests on one fact: C1 is a property of the *panel*, not a step
+# inside the pipeline. ``config_for_cell_c1`` turns an extended coalition into
+# an ordinary four-control ``ExperimentConfig`` whose ``PanelSpec`` carries the
+# state of C1, so every fit still goes through the unmodified ``run_cell``,
+# ``apply_controls`` and cache path. Only ``config_id`` is relabelled, from 4
+# bits to 5.
 
 #: Number of coalitions in the extended lattice.
 N_COALITIONS_C1: int = 2 ** len(CONTROL_NAMES_C1)
@@ -1063,13 +982,10 @@ N_COALITIONS_C1: int = 2 ** len(CONTROL_NAMES_C1)
 #: Extended ``config_id`` values the reference designs may carry: the baseline
 #: coalition at each state of C1.
 #:
-#: The reference designs measure the three-way decomposition of the reported
-#: gap at the baseline coalition only. Once C1 is a player the baseline is
-#: ``c1_dedup=False``, so index 0 is the one the game needs; index 16 is the
-#: same measurement on the deduplicated panel and is the row the four-control
-#: run already produced. Both are kept, because the second costs nothing -- it
-#: is already in the fit cache -- and dropping it would make the extended run
-#: unable to reproduce the published three-way split.
+#: Once C1 is a player the baseline is ``c1_dedup=False``, so index 0 is the one
+#: the game needs. Index 16 is the same measurement on the deduplicated panel;
+#: it is kept because it is already in the fit cache and dropping it would stop
+#: the extended run reproducing the published three-way split.
 BASELINE_CONFIG_IDS_C1: tuple[int, ...] = (
     BASELINE_CONFIG_ID,
     BASELINE_CONFIG_ID + N_COALITIONS,
@@ -1121,10 +1037,6 @@ def _stamp_c1(record: Mapping[str, Any], cfg: ExperimentConfig) -> dict[str, Any
     four-control index and collides between the two C1 states. The extended
     index and the ``c1_dedup`` column are written here instead of inside
     ``run_cell``, so the four-control path keeps producing byte-identical rows.
-
-    The fit cache is unaffected: a cached record is keyed by ``fit_id``, which
-    already separates the two states through ``panel_spec`` and the panel
-    fingerprint, and the relabelling happens after the record is read back.
     """
     flags = extended_flags_of(cfg)
     stamped = dict(record)
@@ -1160,12 +1072,6 @@ def run_cell_c1(
     dict
         A metrics row as :func:`run_cell` returns it, with ``config_id`` in
         ``range(32)`` and an added ``c1_dedup`` column.
-
-    Notes
-    -----
-    A cell with ``c1_dedup=True`` produces exactly the ``fit_id`` the
-    four-control run produced for the same coalition, design, cut, model and
-    seed, so half an extended run is served from the existing fit cache.
     """
     cfg = config_for_cell_c1(base, flags)
     digest = None if panel_digests is None else panel_digests.get(flags.c1_dedup)
@@ -1196,19 +1102,8 @@ def build_jobs_c1(
     Returns
     -------
     list of ExperimentConfig
-        ``68 * len(cuts) * len(models) * len(seeds)`` configs, each already
-        projected onto the four-control form by
-        :func:`sift.config.config_for_cell_c1`. Recover the extended coalition
-        of any of them with :func:`sift.config.extended_flags_of`.
-
-    Notes
-    -----
-    68 per group against 34 for the four-control lattice: the 32 lattice cells
-    per design double to 64, and the reference designs are run at both states of
-    C1 rather than one. Of the 68, the 32 cells with ``c1_dedup=True`` on the
-    two lattice designs and the 2 reference rows at index 16 are byte-identical
-    to jobs the four-control run already performed, so 34 of every 68 are cache
-    hits and only 34 are new fits.
+        ``68 * len(cuts) * len(models) * len(seeds)`` configs, each already projected
+        onto the four-control form by :func:`sift.config.config_for_cell_c1`.
     """
     assert_design_partition()
 

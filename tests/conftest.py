@@ -49,7 +49,7 @@ MLRAN_DIR = REPO_ROOT / "mlran"
 
 A1, A2, B1, B2 = "a1_prior", "a2_labels", "b1_fs", "b2_axis"
 
-# Column names as landed by E1 in sift/mock.py and sift/config.py.
+# Column names as defined in sift/mock.py and sift/config.py.
 TIME_COLUMN_CORRECT = "first_submission_date_year"   # control B2 on
 TIME_COLUMN_NAIVE = "Year"                            # control B2 off
 MODEL = "logreg"
@@ -296,7 +296,7 @@ REDIRECTED_RESULTS: dict[str, object] = {}
 
 
 #: Scratch tree the suite writes into instead of ``results/``. Deliberately a
-#: stable path under ``tests/``, which E4 owns, rather than a per-session
+#: stable path under ``tests/`` rather than a per-session
 #: temporary directory: a fresh directory every session means a cold fit cache
 #: and roughly three extra minutes per run, and the isolation guarantee does not
 #: depend on the path being unique, only on it not being ``results/``.

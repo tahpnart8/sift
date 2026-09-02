@@ -2,7 +2,7 @@
 
 R2 found that ``PanelSpec`` and the panel itself were both absent from the cache
 key, so two panels built from the same raw MLRan files collided on one
-``fit_id``.  E2 measured the consequence: the deduplication sensitivity analysis
+``fit_id``.  The consequence was measured: the deduplication sensitivity analysis
 would have reported 0.000 where the true effect is 0.114.
 
 That is fixed.  ``cache.build_payload`` now takes ``panel_fingerprint`` and
@@ -60,7 +60,7 @@ def _fit_id(panel_spec: PanelSpec, fingerprint: str = "deadbeef" * 4) -> str:
 def test_panel_spec_reaches_the_cache_key() -> None:
     """dedup_exact is the switch the published sensitivity analysis turns off.
 
-    E2 measured the true effect at 0.114. Before the fix this key collided and
+    The true effect measures 0.114. Before the fix this key collided and
     the analysis would have reported 0.000.
     """
     assert _fit_id(PanelSpec(dedup_exact=True)) != _fit_id(PanelSpec(dedup_exact=False))

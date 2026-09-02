@@ -2,28 +2,6 @@
 
 Four designs are defined, forming a chain in which each consecutive pair differs
 in exactly one respect:
-
-- ``random`` against ``random_matched`` differ only in training-set size.
-- ``random_matched`` against ``random_fully_matched`` differ only in the class
-  composition of the test window, and therefore in ``k_test``.
-- ``random_fully_matched`` against ``temporal`` differ only in time order.
-
-None of these three differences is a lattice control, so without the two
-intermediate designs all three would land in the residual that the analysis wants
-to read as concept drift. Matching sizes alone is not sufficient: the temporal
-test window covers only the families that existed by the cut, so its macro
-average is taken over markedly fewer classes than a random draw's, and comparing
-the two would violate the same rule that makes :mod:`sift.metrics` pin its label
-set.
-
-The temporal design is deterministic, but two of the four models carry a
-stochastic component under library defaults: the random forest and the neural
-network. Logistic regression with the lbfgs solver and LightGBM without
-subsampling both return identical predictions for any seed, so their temporal
-variance is exactly zero and any interval for them must come from bootstrapping
-the test window rather than from the seed list. All designs are nevertheless run
-over the same seed list, so that a seed-averaged random score is never compared
-against a single temporal point.
 """
 
 from __future__ import annotations
@@ -149,11 +127,6 @@ def matched_sizes(
     These are the sizes the ``random_matched`` design reproduces. They are read
     from the data rather than configured, because the purpose of that design is
     to inherit exactly what the temporal split happened to produce.
-
-    The seen-classes filter is applied here when control A2 is enabled, so the
-    sizes reflect the test window after A2 has removed unseen families rather
-    than before. Matching the pre-filter size would leave the two designs
-    differing in sample count again whenever A2 is on.
 
     Parameters
     ----------
@@ -309,23 +282,6 @@ def random_matched_split(
     temporal one, so their gap isolates the effect of ordering from the effect of
     training-set size.
 
-    Serves both matched designs. Under ``'random_fully_matched'`` the test-half
-    candidate pool is additionally restricted to the families present in the
-    temporal test window, so that ``k_test`` matches as well as ``n_test``.
-
-    The two halves are drawn in sequence, the test half first. It is the
-    constrained one, and filtering its candidate pool before the draw rather than
-    after is what keeps it at exactly the requested size; filtering afterwards
-    would shrink it below the temporal size and reintroduce the mismatch these
-    designs exist to remove. Drawing the training half first would fail outright
-    at the later cuts, where the families of the temporal test window are scarce
-    enough that an unconstrained training draw consumes most of them.
-
-    When control A2 is enabled the containment it requires, every test family
-    also present in training, is verified rather than imposed by filtering, since
-    filtering at that point would break the size match. Stratified draws over a
-    panel whose smallest family holds twenty samples satisfy it comfortably.
-
     Parameters
     ----------
     panel : pandas.DataFrame
@@ -434,18 +390,16 @@ def make_split(
     spec : sift.config.SplitSpec
         Split specification.
     time_column : str
-        Year column for the temporal design, and for reading the sizes of the
-        matched design. Ignored by the naive random design, but still required so
-        all three designs share one call signature.
+        Year column for the temporal design, and for reading the sizes of the matched
+        design.
     seed : int
         Seed for the two random designs. Ignored by the temporal design, which is
         deterministic.
     stratify_labels : pandas.Series, optional
         Labels to stratify the random designs on.
     label_column : str, optional
-        Column defining the label space, used by the matched designs to reproduce
-        the seen-classes filter at draw time. Required by
-        ``'random_fully_matched'``.
+        Column defining the label space, used by the matched designs to reproduce the
+        seen-classes filter at draw time.
     restrict_labels : bool, default False
         Whether control A2 is enabled. Read by the matched designs only; for the
         temporal and naive random designs A2 is applied after the split.

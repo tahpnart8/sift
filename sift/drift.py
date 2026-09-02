@@ -9,31 +9,6 @@ domain classifier that tests whether the input distribution of the late window
 differs from that of the early window, plus a helper for correlating a drift
 statistic with the residual across the twenty model-by-cut-point cells.
 
-Protocol
---------
-The domain classifier follows Rabanser, Guennemann and Lipton (2019), who
-"partition both the source data and target data into two halves, using the
-first to train a domain classifier to distinguish source (class 0) from target
-(class 1) data", and then test the held-out accuracy with a binomial test of
-``H0: acc = 0.5`` against ``Ha: acc != 0.5``.
-
-Two implementation decisions are ours rather than theirs and are flagged as
-such wherever they appear:
-
-1. The held-out set is balanced by subsampling the larger half. Without this
-   the majority-class rate exceeds one half and the null of 0.5 is simply the
-   wrong null, which would turn class imbalance into spurious evidence of
-   shift. Our windows are strongly unbalanced, so this is not optional.
-2. Results are flagged uninterpretable below a held-out size of 100, because
-   the same paper reports that the domain classifier "performs badly in the
-   low-sample regime (<= 100 samples)". The 2023 cut-point window holds about
-   60 samples, so this regime is reached in practice and the flag must be
-   surfaced rather than buried.
-
-This module is pure with respect to the SIFT data layer: it operates on arrays
-and an explicit integer seed, so it can be exercised without a panel. Callers
-derive that seed through ``sift.seeding.derive_seed``.
-
 References
 ----------
 .. [1] S. Rabanser, S. Guennemann and Z. C. Lipton, "Failing Loudly: An
@@ -140,18 +115,11 @@ class DomainClassifierResult:
     n_target_available : int
         Samples available in the target, that is late, window.
     n_heldout_discarded : int
-        Held-out samples dropped when balancing the larger half down to the
-        smaller. Reported so that the loss of data is visible.
+        Held-out samples dropped when balancing the larger half down to the smaller.
     interpretable : bool
         False when ``n_heldout < MIN_INTERPRETABLE_HELDOUT``.
     warning : str or None
         Explanation attached whenever ``interpretable`` is false.
-
-    Notes
-    -----
-    ``significant`` is deliberately not a stored field: significance depends on
-    the alpha the caller chooses and on ``interpretable``, and storing it would
-    invite reporting a verdict for a window that is too small to support one.
     """
 
     accuracy: float
@@ -181,11 +149,8 @@ class DomainClassifierResult:
         Returns
         -------
         {"shift", "no_shift", "undetermined"}
-            ``"undetermined"`` whenever the held-out set is too small for the
-            method to be trusted, regardless of the p-value. This ordering is
-            deliberate: the sample-size guard overrides the test outcome so
-            that an accidentally significant small window cannot be read as
-            evidence of covariate shift.
+            ``"undetermined"`` whenever the held-out set is too small for the method to
+            be trusted, regardless of the p-value.
         """
         if not self.interpretable:
             return "undetermined"
@@ -217,8 +182,7 @@ def domain_classifier_test(
         Feature matrix of the target, that is late, window. Must have the same
         number of columns as ``x_source``.
     seed : int
-        Seed for the window permutation, the balancing subsample and the
-        estimator. Derive it with ``sift.seeding.derive_seed``.
+        Seed for the window permutation, the balancing subsample and the estimator.
     estimator : sklearn.base.BaseEstimator, optional
         Binary classifier to use. Cloned before fitting. Defaults to
         :func:`default_domain_classifier`.
@@ -246,11 +210,6 @@ def domain_classifier_test(
     majority rate would exceed one half and the null of 0.5 would be wrong.
     Results below ``min_heldout`` are flagged, because the same paper reports
     the method fails in that regime and our 2023 window reaches it.
-
-    Rejecting the null establishes covariate shift, not concept drift. Under
-    the interpretation rule fixed in design section 9, a change in the inputs
-    with no evidence of a change in the conditional distribution is reported as
-    covariate shift and nothing stronger.
     """
     source = np.asarray(x_source)
     target = np.asarray(x_target)
@@ -363,15 +322,6 @@ def correlate_residual_with_drift(
     ValueError
         If the two arrays have different lengths or fewer than three finite
         pairs.
-
-    Notes
-    -----
-    A positive association is real evidence that the residual carries drift
-    signal, which is exactly what the residual claim needs; the absence of an
-    association is equally reportable and must not be suppressed. With twenty
-    cells this correlation is itself low-powered, so report the coefficient
-    with its p-value and refrain from reading a null result as evidence of no
-    drift.
     """
     left = np.asarray(residuals, dtype=float).ravel()
     right = np.asarray(drift_statistic, dtype=float).ravel()
@@ -425,26 +375,6 @@ def bootstrap_gap_distribution(
     -------
     numpy.ndarray
         ``n_boot`` values of ``metric(reference) - metric(temporal)``.
-
-    Notes
-    -----
-    The two arms are resampled independently, because they are separate fits on
-    disjoint sample pools, and the draws are then differenced elementwise. The
-    resulting interval describes sampling variation in the two test windows; it
-    is not an interval for a population, since a temporal window is one specific
-    time slice rather than an exchangeable draw.
-
-    Each arm pins its label set once, to the classes present in its own
-    ``y_true``, and reuses it for every resample. A resample of a small window
-    routinely misses a class entirely, and holding the denominator fixed keeps
-    every draw on the same scale as the point estimate; a missing class then
-    contributes a genuine zero instead of shrinking the average. Draws are never
-    discarded and redrawn, which would bias the distribution upward.
-
-    Weights travel with their observations rather than being recomputed on each
-    resample. Control A1's weight is a property of the sample's class, so
-    carrying it along keeps the identity resample equal to the stored point
-    estimate, which is the property that makes this interval checkable.
     """
     from sklearn.metrics import balanced_accuracy_score  # noqa: PLC0415
 
@@ -533,29 +463,14 @@ def conditional_structure_agreement(
     seed : int
         Seed for the within-window control.
     n_repeats : int, optional
-        Number of random splits used to estimate the within-window ceiling, and
-        equally the number of class-matched resamples. The default of 500 is set
-        by the 2.5th percentile the decision rule reads: at twenty draws that
-        percentile is effectively the minimum of the sample and moves by tenths
-        between runs of the same cut, which is not a threshold a conclusion can
-        rest on. Five hundred draws cost about 17 s at the largest cut, so the
-        stability is bought cheaply.
+        Number of random splits used to estimate the within-window ceiling, and equally
+        the number of class-matched resamples.
 
     Returns
     -------
     dict
-        ``across`` is the Spearman agreement between the two windows'
-        correlation vectors. ``across_matched`` repeats it with the early window
-        resampled to the later window's class proportions, which removes the
-        component of any disagreement that is only a change in class
-        composition. ``below_within_null`` is the pre-specified decision: whether
-        ``across`` falls below the 2.5th percentile of the within-window
-        control, a comparison against a null rather than against a chosen
-        threshold. ``within_mean``, ``within_lo`` and ``within_hi``
-        describe the agreement between two disjoint halves of the early window,
-        subsampled to the size of the later one. ``ratio`` is
-        ``across / within_mean``. Also returns ``n_shared_classes``,
-        ``n_features`` and ``n_late``.
+        ``across`` is the Spearman agreement between the two windows' correlation
+        vectors.
 
         Four further fields record the null distribution itself, so that a
         statement about how the observed value sits inside it can be checked
@@ -593,13 +508,6 @@ def conditional_structure_agreement(
     conditional counterpart. It is computed on the shared label space with the
     class prior already fixed, so a change in it is a change in the relationship
     between features and labels rather than in how often each label occurs.
-
-    The within-window control is what makes the number interpretable. Two
-    disjoint halves of the *same* window, cut to the size of the later window,
-    give the agreement attainable when nothing has changed at all. Comparing
-    across-window agreement to that ceiling separates a real change in the
-    conditional from the sampling noise of a small window, which at these sizes
-    is large.
     """
     from scipy import stats  # noqa: PLC0415
 
@@ -740,15 +648,6 @@ def expected_calibration_error(
     tuple of (float, pandas.DataFrame)
         The ECE, and a frame with ``bin``, ``n``, ``confidence`` and
         ``accuracy`` for each occupied bin.
-
-    Notes
-    -----
-    ECE is reported as descriptive context only and carries no inferential
-    weight here. Ovadia et al. show calibration degrades under input shift
-    alone, so a worsening ECE is consistent with covariate shift and cannot
-    support a concept-drift conclusion. The bin counts are returned alongside
-    because ECE is badly biased upward when bins hold few samples, which at
-    these window sizes they do.
     """
     import pandas as pd  # noqa: PLC0415
 

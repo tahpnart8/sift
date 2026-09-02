@@ -7,15 +7,6 @@ the characteristic function ``v`` is measured rather than modelled: all
 ``2 ** 4 = 16`` coalitions are actually run, so the Shapley value is obtained in
 closed form and no Monte Carlo sampling is involved.
 
-The aggregation follows Shapley (1953) and Shorrocks (2013). It is deliberately
-*not* SHAP: no explanation of a model prediction is produced anywhere in this
-module, and the Lundberg-Lee estimator plays no role.
-
-Every public function is pure and depends only on the standard library. The
-characteristic function is passed as a ``Mapping[frozenset[str], float]`` so
-that the numerical core can be unit-tested against hand-computed games without
-constructing a panel, an estimator, or a DataFrame.
-
 References
 ----------
 .. [1] L. S. Shapley, "A value for n-person games", in *Contributions to the
@@ -60,7 +51,7 @@ __all__ = [
 ]
 
 DEFAULT_TOLERANCE: float = 1e-9
-"""Numerical tolerance for the arithmetic checks, per design section 8.3."""
+"""Numerical tolerance for the three arithmetic checks."""
 
 DEFAULT_CONTROL_COLUMNS: tuple[str, ...] = ("a1_prior", "a2_labels", "b1_fs", "b2_axis")
 """Flag columns :func:`gap_values` reads when no player set is named.
@@ -88,9 +79,7 @@ accumulation loop.
 """
 
 
-# ---------------------------------------------------------------------------
-# Weights
-# ---------------------------------------------------------------------------
+# --- Weights ----------------------------------------------------------------
 
 
 @lru_cache(maxsize=None)
@@ -121,20 +110,12 @@ def shapley_weights(n_players: int) -> dict[int, float]:
         Mapping from ``|S|``, ranging over ``0 .. n_players - 1``, to the
         weight ``|S|! (n - |S| - 1)! / n!`` applied to the marginal
         contribution ``v(S + {i}) - v(S)``.
-
-    Notes
-    -----
-    For ``n_players == 4`` the tabulated constants in :data:`SHAPLEY_WEIGHTS_K4`
-    are returned. The weights sum to one once counted with the number of
-    subsets of each size; :func:`check_weights_sum_to_one` asserts exactly that.
     """
     table = _weight_table(n_players)
     return {size: table[size] for size in range(n_players)}
 
 
-# ---------------------------------------------------------------------------
-# Lattice validation
-# ---------------------------------------------------------------------------
+# --- Lattice validation -----------------------------------------------------
 
 
 def _infer_players(values: Mapping[frozenset[str], float]) -> tuple[str, ...]:
@@ -162,12 +143,6 @@ def _validate_lattice(
         If any of the ``2 ** n`` coalitions is missing, if extra keys are
         present, or if ``v(empty set)`` deviates from zero by more than
         :data:`DEFAULT_TOLERANCE`.
-
-    Notes
-    -----
-    Silent omission of lattice cells is forbidden by the contract: an exact
-    Shapley value requires every coalition to have been measured, so a missing
-    cell is an error and never a value to be imputed.
     """
     n_players = len(players)
     expected = 1 << n_players
@@ -190,9 +165,7 @@ def _validate_lattice(
         )
 
 
-# ---------------------------------------------------------------------------
-# Shapley value
-# ---------------------------------------------------------------------------
+# --- Shapley value ----------------------------------------------------------
 
 
 def exact_shapley(values: Mapping[frozenset[str], float]) -> dict[str, float]:
@@ -215,17 +188,9 @@ def exact_shapley(values: Mapping[frozenset[str], float]) -> dict[str, float]:
 
     .. math::
 
-        \\phi_i = \\sum_{S \\subseteq N \\setminus \\{i\\}}
-                  \\frac{|S|!\\,(n-|S|-1)!}{n!}
-                  \\bigl(v(S \\cup \\{i\\}) - v(S)\\bigr).
-
-    Marginal contributions are differences of macro-F1 values that lie close to
-    one another, so they are accumulated with :func:`math.fsum` rather than a
-    naive running sum, which would lose significant digits to cancellation.
-
-    ``v`` is not assumed monotone or superadditive, so a negative ``phi_i`` is a
-    legal and interpretable outcome meaning that the corresponding control
-    widens the evaluation gap. Values are therefore never clipped at zero.
+        \phi_i = \sum_{S \subseteq N \setminus \{i\}}
+                  \frac{|S|!\,(n-|S|-1)!}{n!}
+                  \bigl(v(S \cup \{i\}) - v(S)\bigr).
     """
     players = _infer_players(values)
     _validate_lattice(values, players)
@@ -246,9 +211,7 @@ def exact_shapley(values: Mapping[frozenset[str], float]) -> dict[str, float]:
     return phi
 
 
-# ---------------------------------------------------------------------------
-# Harsanyi dividends, that is the Moebius transform
-# ---------------------------------------------------------------------------
+# --- Harsanyi dividends, that is the Moebius transform ----------------------
 
 
 def harsanyi_dividends(
@@ -272,12 +235,7 @@ def harsanyi_dividends(
 
     .. math::
 
-        m(S) = \\sum_{T \\subseteq S} (-1)^{|S| - |T|} v(T).
-
-    Singleton dividends are the pure main effect of each control, and pairwise
-    dividends ``m({i, j})`` quantify how strongly two controls interact. The
-    latter are the evidence for the claim that switching controls off one at a
-    time is order-dependent, per design section 8.4.
+        m(S) = \sum_{T \subseteq S} (-1)^{|S| - |T|} v(T).
     """
     players = _infer_players(values)
     _validate_lattice(values, players)
@@ -331,9 +289,7 @@ def shapley_from_dividends(
     return phi
 
 
-# ---------------------------------------------------------------------------
-# Owen value for the two-tier taxonomy
-# ---------------------------------------------------------------------------
+# --- Owen value for the two-tier taxonomy -----------------------------------
 
 
 def _validate_partition(
@@ -388,19 +344,10 @@ def owen_value(
 
     .. math::
 
-        \\phi_i^{Ow} = \\sum_{R \\subseteq M \\setminus \\{k\\}}
-                       \\sum_{T \\subseteq B_k \\setminus \\{i\\}}
-                       w(|R|, m)\\, w(|T|, b_k)
-                       \\bigl(v(Q \\cup T \\cup \\{i\\}) - v(Q \\cup T)\\bigr),
-
-    where ``Q`` is the union of the members of ``R`` and ``w`` is the Shapley
-    weight for the corresponding size.
-
-    The Owen value answers the question the proposal actually poses, namely how
-    much of the evaluation gap is protocol-side rather than data-side. It is
-    efficient, so the per-player values still sum to ``v(N)``, and within a
-    union they sum to the Shapley value of that union in the quotient game;
-    :func:`check_owen_group_consistency` verifies the latter.
+        \phi_i^{Ow} = \sum_{R \subseteq M \setminus \{k\}}
+                       \sum_{T \subseteq B_k \setminus \{i\}}
+                       w(|R|, m)\, w(|T|, b_k)
+                       \bigl(v(Q \cup T \cup \{i\}) - v(Q \cup T)\bigr),
     """
     players = _infer_players(values)
     _validate_lattice(values, players)
@@ -456,12 +403,6 @@ def quotient_game_shapley(
     dict of {str: float}
         Shapley value per union, computed on the quotient game in which each
         union acts as a single player.
-
-    Notes
-    -----
-    This is the tier-level number reported next to the per-control values: how
-    much of the gap is attributable to the data-side tier as a whole and how
-    much to the protocol-side tier as a whole.
     """
     players = _infer_players(values)
     _validate_lattice(values, players)
@@ -490,9 +431,7 @@ def quotient_game_shapley(
     return exact_shapley(quotient)
 
 
-# ---------------------------------------------------------------------------
-# Verification
-# ---------------------------------------------------------------------------
+# --- Verification -----------------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -544,11 +483,6 @@ def check_weights_sum_to_one(
     -------
     VerificationResult
         ``passed`` is true when ``sum_s C(n - 1, s) * w(s) == 1``.
-
-    Notes
-    -----
-    This is the cheapest of the mandatory checks and it isolates errors in the
-    weight table itself, independently of any measured value.
     """
     weights = _weight_table(n_players)
     total = fsum(
@@ -591,12 +525,6 @@ def check_efficiency(
     -------
     VerificationResult
         ``passed`` is true when the attributions exhaust the grand coalition.
-
-    Notes
-    -----
-    Efficiency is what makes the core equation of the paper an identity rather
-    than an empirical finding, and it is the property that rules out the
-    Banzhaf value as an alternative aggregation.
     """
     players = _infer_players(values)
     grand = float(values[frozenset(players)]) - float(values[frozenset()])
@@ -631,12 +559,6 @@ def check_mobius_consistency(
     -------
     VerificationResult
         ``passed`` is true when both routes agree for every player.
-
-    Notes
-    -----
-    The Moebius route shares no arithmetic with the marginal-contribution sum,
-    so it detects weight-table and indexing errors that leave efficiency
-    intact. Design section 8.3 makes this check mandatory for that reason.
     """
     recovered = shapley_from_dividends(harsanyi_dividends(values))
     if set(recovered) != set(phi):
@@ -684,12 +606,6 @@ def check_owen_group_consistency(
     -------
     VerificationResult
         ``passed`` is true when every union balances.
-
-    Notes
-    -----
-    This guards the tier-level claim: the per-control Owen values and the tier
-    totals must be one decomposition seen at two levels of aggregation, not two
-    independent computations that happen to be printed side by side.
     """
     names = tuple(f"tier_{index}" for index in range(len(groups)))
     tier_shapley = quotient_game_shapley(values, groups, names)
@@ -738,13 +654,6 @@ def run_all_checks(
         One entry per check, in a stable order. Nothing is raised; the caller
         decides whether a failure is fatal via
         :meth:`VerificationResult.raise_if_failed`.
-
-    Notes
-    -----
-    The checks are returned as data rather than enforced with bare ``assert``
-    statements so that they can be tabulated in the reproducibility appendix,
-    and so that they survive execution under ``python -O``, which strips
-    ``assert``.
     """
     players = _infer_players(values)
     attribution = dict(phi) if phi is not None else exact_shapley(values)
@@ -764,9 +673,7 @@ def run_all_checks(
     return results
 
 
-# ---------------------------------------------------------------------------
-# Convenience container
-# ---------------------------------------------------------------------------
+# --- Convenience container --------------------------------------------------
 
 
 @dataclass(frozen=True)
@@ -840,13 +747,6 @@ def decompose(
     -------
     Decomposition
         The attribution, the residual, the interaction table and the checks.
-
-    Notes
-    -----
-    The identity ``delta = sum_i phi_i + residual`` holds by construction, since
-    ``residual`` is defined as ``delta - v(N)`` and efficiency gives
-    ``sum_i phi_i == v(N)``. The paper must state this so that readers do not
-    read the row total as an empirical result.
     """
     players = _infer_players(values)
     shapley = exact_shapley(values)
@@ -900,17 +800,14 @@ def gap_values(
     temporal_design, reference_design : str, optional
         The two arms of the game.
     control_names : sequence of str, optional
-        The players. Defaults to :data:`DEFAULT_CONTROL_COLUMNS`, the four
-        controls, and then ``2 ** 4`` coalitions are required. Pass
-        ``sift.config.CONTROL_NAMES_C1`` to read a five-control table, where
-        ``2 ** 5`` coalitions are required instead. Every named column must be
-        present; a table lacking one is an error rather than a smaller game.
+        The players. Defaults to :data:`DEFAULT_CONTROL_COLUMNS`, the four controls, and
+        then ``2 ** 4`` coalitions are required.
 
     Returns
     -------
     dict of {frozenset of str: float}
-        ``v(S) = Delta(empty) - Delta(S)`` for all ``2 ** n`` coalitions, ready
-        for :func:`exact_shapley`. ``v(empty)`` is exactly zero.
+        ``v(S) = Delta(empty) - Delta(S)`` for all ``2 ** n`` coalitions, ready for
+        :func:`exact_shapley`.
 
     Raises
     ------
@@ -918,23 +815,6 @@ def gap_values(
         If reference-role rows are present in the selection, if either arm is
         missing, if a named control column is absent, or if the selection does
         not carry all ``2 ** n`` coalitions.
-
-    Notes
-    -----
-    With ``Delta(S) = M_reference(S) - M_temporal(S)``, both arms move with the
-    coalition: ``b2_axis`` changes which families the temporal window holds and
-    the matched reference restricts its test pool to that same family set. The
-    subtraction is therefore between two numbers measured over the same family
-    set, which is what makes ``v(S)`` comparable across the lattice.
-
-    The residual is ``R = Delta(N)``, and ``Delta(empty) = sum_i phi_i + R``
-    follows from efficiency.
-
-    Reference-role designs, ``random`` and ``random_matched``, are measurements
-    about the reported gap rather than moves in the game. Folding them in would
-    average a baseline-only row into a coalition, so their presence is an error
-    here; the three-way split they serve lives in
-    :func:`sift.reporting.build_gap_decomposition`.
     """
     frame = metrics
     required = {"design", "config_id", "model", "cut", metric_column}

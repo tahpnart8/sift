@@ -3,81 +3,11 @@
 Why this module exists
 ----------------------
 The SIFT residual ``R = Delta - v(N)`` is what the four controls leave
-unexplained, never a measurement of genuine concept drift. The framework's step-three test of the
-conditional was refuted by the paper's own counterexample: the statistic it
+unexplained, never a measurement of genuine concept drift. The step-three test
+of the conditional was refuted by the paper's own counterexample: the statistic it
 computes summarises ``p(x|y)``, not ``p(y|x)``, so a pure covariate shift can
 move it. That left the framework with no valid instrument for the one quantity
 concept drift is defined by.
-
-This module supplies the standard instrument. Under the covariate-shift
-assumption ``p_early(y|x) = p_late(y|x)`` with ``p_early(x) != p_late(x)``, a
-model fitted on the early window *reweighted by the density ratio*
-
-.. math:: w(x) = p_{late}(x) / p_{early}(x)
-
-is fitted, in expectation, to the late window's input distribution. Its risk
-under ``p_late(x)`` is then estimable from the early sample alone. Comparing
-that estimate against the risk actually observed on the late window isolates
-the conditional: both quantities live under the same ``p_late(x)``, so a
-difference between them cannot be produced by covariate shift.
-
-The contrast, precisely
------------------------
-Let the early window be split into a fit half and a held-out half, and let
-``f`` be the model fitted on the fit half with weights ``w``.
-
-``A = risk_source_weighted``
-    Performance of ``f`` on the *early* held-out half, scored with the same
-    weights. Estimand: performance under ``p_late(x) p_early(y|x)``.
-``B = risk_target``
-    Performance of ``f`` on the *late* window, unweighted, because the late
-    window already is its own distribution. Estimand: performance under
-    ``p_late(x) p_late(y|x)``.
-``conditional_gap = A - B``
-    The two estimands differ only in the conditional. Every reported metric is
-    oriented so that higher is better, so a positive gap means the late window
-    performs *worse* than covariate shift alone can explain, which implicates
-    ``p(y|x)``. A gap whose interval covers zero means covariate shift suffices
-    to account for the observed degradation.
-
-Scoring the same fitted model under both distributions is what makes the
-contrast valid under a misspecified model. The weighted fit does not need to
-recover the truth; it only needs to be the same function on both sides, so that
-the only remaining difference between A and B is the conditional.
-
-For context the module also reports the naive contrast, ``raw_gap``, from an
-unweighted fit on the same fit half. ``raw_gap`` is the degradation the paper
-already reports; ``conditional_gap`` is what survives the correction for
-``p(x)``.
-
-Assumptions this rests on, all of them falsifiable
---------------------------------------------------
-1. **Common support.** ``p_early(x) > 0`` wherever ``p_late(x) > 0``. If the
-   late window occupies a region the early window never visits, the true
-   density ratio is unbounded there and no finite reweighting reaches it. The
-   effective-sample-size diagnostic is the observable symptom of a support
-   violation, and it is reported with every result.
-2. **A usable density-ratio estimate.** The ratio is obtained from a domain
-   classifier, so it inherits that classifier's calibration error. At the 0.80
-   to 0.84 discrimination the SIFT windows exhibit, the ratio is genuinely
-   badly behaved and the estimator's variance is large. This is a property of
-   the data, not a defect of the code, and the module is built to say so rather
-   than to hide it.
-3. **The label space is shared.** A class present in the late window but absent
-   from the early window is a change in the label space, not in ``p(y|x)``, and
-   importance weighting cannot address it. Such rows are counted and reported
-   as a note.
-
-What the interval does and does not cover
------------------------------------------
-The bootstrap resamples the two *evaluation* sets. It therefore covers sampling
-variation in the two risk estimates. It does **not** cover variation from
-re-estimating the density ratio, nor from refitting the model, both of which are
-held fixed across replicates. The reported interval is consequently a *lower*
-bound on total uncertainty, and is labelled as such. A wide interval that covers
-zero is a legitimate and expected outcome at this level of discrimination; the
-pre-registered rule reads it as ``"inconclusive"``, which is a clean result and
-not a failure.
 
 References
 ----------
@@ -249,7 +179,6 @@ class IWRiskEstimate:
         ``"unclipped"`` or ``"clipped(q=...)"``.
     risk_source_weighted : float
         Score A: the weighted model scored on the weighted early held-out half.
-        Estimates performance under ``p_late(x) p_early(y|x)``.
     risk_target : float
         Score B: the same model scored on the late window. Estimates
         performance under ``p_late(x) p_late(y|x)``.
@@ -318,10 +247,8 @@ class IWRiskResult:
         Row counts: the whole early window, the late window, and the two halves
         the early window was split into.
     labels : numpy.ndarray
-        Label set both risks were scored over, pinned to the classes present in
-        the early window. A model fitted on the early window cannot predict a
-        class it never saw, so scoring the two sides over different label sets
-        would make the gap incomparable.
+        Label set both risks were scored over, pinned to the classes present in the
+        early window.
     n_late_rows_unseen_class : int
         Late rows whose class is absent from the early window. These are a
         label-space change, which importance weighting does not address.
@@ -450,9 +377,8 @@ def effective_sample_size(weights: np.ndarray) -> float:
     Returns
     -------
     float
-        The effective sample size. Equals ``len(weights)`` when the weights are
-        uniform and falls toward one as the mass concentrates on a single row.
-        Scale-invariant, so normalising the weights does not change it.
+        The effective sample size. Equals ``len(weights)`` when the weights are uniform
+        and falls toward one as the mass concentrates on a single row.
 
     Raises
     ------
@@ -482,15 +408,6 @@ def default_risk_model(seed: int) -> Pipeline:
     -------
     sklearn.pipeline.Pipeline
         Standardisation followed by logistic regression.
-
-    Notes
-    -----
-    A linear model is the default for the same reason it is the default domain
-    classifier: the estimand here is a *difference* of two risks, and a
-    high-capacity model inflates the variance of both terms without sharpening
-    the contrast. Callers who want the lattice's own model families pass an
-    estimator explicitly; anything whose ``fit`` accepts ``sample_weight`` works,
-    including a :class:`~sklearn.pipeline.Pipeline`.
     """
     return Pipeline(
         steps=[
@@ -589,13 +506,6 @@ def estimate_density_ratio(
     separate the two windows, and its calibrated probability is converted to a
     ratio through the odds transform
 
-    .. math:: w(x) = \\frac{p(\\text{late}|x)}{1 - p(\\text{late}|x)} \\cdot c
-
-    where ``c`` corrects for the proportions the two windows contributed to the
-    classifier's training set. Bayes' rule gives
-    ``p(late|x) / p(early|x) = w(x) p(late) / p(early)``, so ``c`` is the inverse
-    of the training prior odds.
-
     Parameters
     ----------
     x_early, x_late : numpy.ndarray of shape (n, n_features)
@@ -613,26 +523,17 @@ def estimate_density_ratio(
     n_folds : int, optional
         Cross-fitting folds. Reduced automatically when a window is too small.
     prior_correction : {"balanced", "sampling", "none"} or float, optional
-        ``"balanced"``, the default, assumes the classifier equalised the two
-        windows through ``class_weight="balanced"``, which is what the SIFT
-        default domain classifier does. Its training prior is then one half on
-        each side, the prior odds are one, and ``c = 1``. ``"sampling"`` assumes
-        an unweighted fit, whose training prior odds are ``n_late / n_early``,
-        giving ``c = n_early / n_late``. ``"none"`` forces ``c = 1``, and a float
-        sets it directly. Passing the wrong option rescales every weight by a
-        constant, which leaves the effective sample size and, under
-        ``normalise``, the returned weights unchanged, but it would corrupt an
-        absolute reading of the ratio.
+        ``"balanced"``, the default, assumes the classifier equalised the two windows
+        through ``class_weight="balanced"``, which is what the SIFT default domain
+        classifier does.
     clip_quantile : float, optional
         Quantile of the raw weights at which to truncate, for example 0.99. None
         leaves the weights untouched.
     normalise : bool, optional
-        Rescale the returned weights to mean one over the early window. On by
-        default, because a regularised fit is not scale-invariant in its weights:
-        multiplying every weight by ten weakens the penalty tenfold relative to
-        the likelihood and so changes the fitted model for reasons that have
-        nothing to do with the shift. Normalising pins the total weight to the
-        raw row count, which is the scale an unweighted fit would have used.
+        Rescale the returned weights to mean one over the early window. On by default,
+        because a regularised fit is not scale-invariant in its weights: multiplying
+        every weight by ten weakens the penalty tenfold relative to the likelihood and
+        so changes the fitted model for reasons that have nothing to do with the shift.
 
     Returns
     -------
@@ -909,8 +810,7 @@ def importance_weighted_risk(
         Base seed. All stochastic components derive their own seed from it, so
         the whole analysis is reproducible from this integer.
     estimator : sklearn.base.BaseEstimator, optional
-        Model refitted under the weights. Its ``fit`` must accept
-        ``sample_weight``. Defaults to :func:`default_risk_model`.
+        Model refitted under the weights. Its ``fit`` must accept ``sample_weight``.
     domain_estimator : sklearn.base.BaseEstimator, optional
         Classifier used for the density ratio. Defaults to
         :func:`sift.drift.default_domain_classifier`.

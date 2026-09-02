@@ -3,7 +3,7 @@
 Nothing here is new analysis. The window construction is copied from notebook
 04 cell 9 (``apply_controls`` under the B2 coalition, temporal split, logreg,
 seed 0) and handed to :func:`sift.iwrisk.importance_weighted_risk` exactly as
-its contract in ``.draft/iwrisk.md`` describes. The only choices made here are
+its module contract describes. The only choices made here are
 which cuts to run (the three in scope) and where to write the output.
 """
 

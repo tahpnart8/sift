@@ -37,11 +37,6 @@ def new_run_id() -> str:
     str
         26-character ULID: 48 bits of millisecond timestamp followed by 80
         bits of randomness, encoded in Crockford base32.
-
-    Notes
-    -----
-    Sortability matters because resumed runs append to the same cache; sorting
-    run ids orders them by time without parsing a timestamp column.
     """
     value = (int(time.time() * 1000) << 80) | secrets.randbits(80)
     characters = []
@@ -75,12 +70,6 @@ def git_info(repo_dir: Path) -> dict[str, Any]:
     dict
         Keys ``commit``, ``branch``, ``dirty`` and ``reason``. On failure the
         first three are ``None`` and ``reason`` explains why.
-
-    Notes
-    -----
-    The SIFT project directory is currently not a git repository, so this must
-    degrade rather than abort: a run that cannot record its commit is still
-    worth recording, and the missing commit is itself a finding.
     """
     def _run(args: list[str]) -> tuple[int, str, str]:
         try:

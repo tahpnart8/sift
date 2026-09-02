@@ -3,21 +3,6 @@
 Every stochastic object in the experiment receives an explicitly derived seed.
 Three rules follow from the requirement that a difference between two lattice
 cells be attributable to the controls rather than to chance:
-
-- ``numpy.random.seed`` is never called, because global state makes a result
-  depend on execution order.
-- ``random_state=None`` is never used, because it draws from entropy.
-- Literal seeds are never written inside functions, because a literal cannot vary
-  with the run.
-
-Derivation uses BLAKE2b rather than :func:`hash`, whose output for :class:`str`
-is randomised per process unless ``PYTHONHASHSEED`` is pinned.
-
-We deliberately depart from the scikit-learn recommendation of passing
-:class:`numpy.random.RandomState` instances to estimators. That recommendation
-serves robustness estimation; here we need results identical for a given triple
-of configuration, model and seed, so that variation across the 16 cells reflects
-the controls. Robustness is recovered by averaging over an explicit seed list.
 """
 
 from __future__ import annotations
@@ -45,8 +30,8 @@ def derive_seed(base_seed: int, *parts: str | int) -> int:
     base_seed : int
         Base seed of the run, taken from :attr:`sift.config.ExperimentConfig.seed`.
     *parts : str or int
-        Role labels identifying the consumer, for example ``"model"``, the model
-        name and the cut year. Order is significant.
+        Role labels identifying the consumer, for example ``"model"``, the model name
+        and the cut year.
 
     Returns
     -------
