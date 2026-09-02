@@ -250,8 +250,11 @@ helpers it calls. We use a content-addressed cache of our own instead.
 The cache key is a blake2b over canonicalised JSON containing: the schema
 version, the task name, the MLRan commit and the sha256 of the three data files,
 the four control flags, the design, the cut, the seed, the model name, the model
-parameters, **a hash of all of `sift/*.py`**, and the library versions. `n_jobs`
-and `verbose` are excluded, having been checked not to change predictions.
+parameters, **a hash of every `sift/*.py` module on the fit path**, and the
+library versions. `n_jobs` and `verbose` are excluded, having been checked not
+to change predictions. `NON_FIT_MODULES` in `sift/cache.py` names the modules
+left out: those that read results but cannot reach a fit, so an edit to the
+analysis or reporting layer does not discard the cache.
 
 The cache sits at fit level, not at data-preparation level. Measured: 0.5 s to
 load and 0.3 s to preprocess, so rebuilding for all 16 configurations costs about
