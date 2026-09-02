@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sift"
+version = "0.1.0"
+description = "Shift Isolation Framework for Temporal evaluation of ransomware classifiers"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+
+# Pinned to the tested set rather than to lower bounds. The experiment reports
+# exact metric values, and tree ensembles and boosted models are not guaranteed
+# bit-identical across library releases, so the version set is part of the result.
+dependencies = [
+    "numpy==2.4.4",
+    "pandas==2.2.3",
+    "scikit-learn==1.8.0",
+    "lightgbm==4.7.0",
+    "scipy>=1.17,<2",
+    "pyarrow>=15",
+]
+
+[project.optional-dependencies]
+# Kept out of the core install so that a headless run of the lattice does not
+# depend on the plotting and notebook stack.
+notebook = [
+    "matplotlib>=3.10",
+    "jupyter>=1.1",
+    "nbformat>=5.10",
+    "nbclient>=0.11",
+]
+dev = [
+    "pytest>=9.0",
+]
+
+[tool.setuptools]
+packages = ["sift"]
+
+[tool.setuptools.package-data]
+sift = ["CONTRACT.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra --strict-markers"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP", "B", "D"]
+ignore = ["D203", "D213"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy"

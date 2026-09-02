@@ -1,0 +1,34 @@
+cff-version: 1.2.0
+title: "SIFT: code and results"
+message: >-
+  If you use this software or its results, cite both this repository and the
+  paper listed under preferred-citation.
+type: software
+license: MIT
+repository-code: "https://github.com/tahpnart8/sift"
+abstract: >-
+  Code, configuration and result tables for SIFT, a diagnostic framework that
+  decomposes the performance drop from random to temporal evaluation of a
+  ransomware family classifier into four evaluation-protocol confounds plus a
+  residual, using an exact Shapley-Shorrocks decomposition over a complete
+  16-cell ablation lattice.
+keywords:
+  - ransomware family classification
+  - temporal evaluation
+  - dataset shift
+  - Shapley decomposition
+  - evaluation confounds
+# TODO before publishing: add the remaining co-authors, with ORCID where held,
+# in the same order as the paper.
+authors:
+  - family-names: "Tran"
+    given-names: "Duc Phat"
+preferred-citation:
+  type: conference-paper
+  title: >-
+    SIFT: Decomposing Temporal Performance Degradation in Ransomware Family
+    Classification
+  year: 2026
+  authors:
+    - family-names: "Tran"
+      given-names: "Duc Phat"

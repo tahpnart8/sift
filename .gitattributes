@@ -1,0 +1,6 @@
+# Normalise line endings in the repository. Without this, a checkout on Windows
+# rewrites every text file and makes the tree look changed against a Linux clone.
+* text=auto
+
+*.parquet binary
+*.pkl binary

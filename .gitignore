@@ -1,0 +1,19 @@
+# Refittable model cache. Regenerated on demand, never part of a result.
+**/fit_cache/
+
+# Raw MLRan data is not redistributed here. See docs/data.md.
+mlran/
+data/
+
+# Local scratch
+results_backup_2023/
+tests/.scratch/
+
+__pycache__/
+.pytest_cache/
+*.py[cod]
+.ipynb_checkpoints/
+.venv/
+venv/
+*.log
+.DS_Store

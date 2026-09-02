@@ -1,0 +1,139 @@
+{
+  "manifest_version": "1",
+  "schema_version": "3",
+  "run_id": "01M10YPZ81FWGT39XWQFWCX3JG",
+  "task": "family32",
+  "started_utc": "2026-08-27T06:32:27+00:00",
+  "ended_utc": "2026-08-27T08:08:39+00:00",
+  "wall_seconds": 5772.505,
+  "git": {
+    "commit": "1e8abb596d71e7fcd503bae6c392214141eed50f",
+    "branch": "master",
+    "dirty": true,
+    "reason": null
+  },
+  "git_at_end": {
+    "commit": "b5c23c707b4e286925ff3f1af4062410bfd5a243",
+    "branch": "master",
+    "dirty": true,
+    "reason": null
+  },
+  "git_moved_during_run": true,
+  "code_version": "24dbd2d3881ff62691745d01745fac8ccf2be82ea884a2dc2005d6a2baec281c",
+  "code_version_scope": [
+    "__init__.py",
+    "cache.py",
+    "config.py",
+    "controls.py",
+    "data.py",
+    "experiment.py",
+    "features.py",
+    "iwrisk.py",
+    "manifest.py",
+    "metrics.py",
+    "models.py",
+    "paths.py",
+    "seeding.py",
+    "splits.py"
+  ],
+  "dataset": {
+    "mlran_commit": "ec2651f",
+    "files": {
+      "MLRan_X_train_RFE.csv": "aaf75d5754aac247b93e2a7d0baa449ccb3eacc08117f50dfa0fb422aff3db1f",
+      "MLRan_X_test_RFE.csv": "792e7bea9ccfe8bb056a05bc4751ebf18311c55e548d1b80910214c052ee8e16",
+      "mlran_dataset_metadata.csv": "0e275f49c2995cc31181d43b7f30e266be8ecb7e4bf45dcc8bf6cc4ca7637a5a"
+    }
+  },
+  "environment": {
+    "platform": {
+      "system": "Windows",
+      "release": "10",
+      "machine": "AMD64",
+      "cpu_physical": 4,
+      "cpu_logical": 8
+    },
+    "python_executable": "C:\\Users\\User\\AppData\\Local\\Microsoft\\WindowsApps\\PythonSoftwareFoundation.Python.3.11_qbz5n2kfra8p0\\python.exe",
+    "lib_versions": {
+      "numpy": "2.4.4",
+      "pandas": "2.2.3",
+      "scikit-learn": "1.8.0",
+      "lightgbm": "4.7.0",
+      "scipy": "1.17.1",
+      "pyarrow": "25.0.0",
+      "joblib": "1.5.3",
+      "threadpoolctl": "3.6.0",
+      "python": "3.11.9"
+    },
+    "thread_env": {
+      "OMP_NUM_THREADS": null,
+      "MKL_NUM_THREADS": null,
+      "OPENBLAS_NUM_THREADS": null
+    }
+  },
+  "threading": {
+    "n_jobs": 6,
+    "backend": "loky",
+    "batch_size": 1,
+    "pre_dispatch": "2*n_jobs",
+    "estimator_n_jobs": 1,
+    "note": "n_jobs=6 measured 1.99x; bottleneck is memory bandwidth"
+  },
+  "rng_policy": {
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "derivation": "derive_seed(base_seed, \"model\", model_name, cut_year)",
+    "designs_share_seed_list": true
+  },
+  "counts": {
+    "fits_planned": 3400,
+    "fits_recorded": 3400,
+    "fits_from_cache": 0,
+    "prediction_rows": 759200,
+    "fits_executed": 3400,
+    "fits_failed": 0
+  },
+  "n_fits_planned": 3400,
+  "n_fits_executed": 3400,
+  "n_fits_cached": 0,
+  "n_fits_failed": 0,
+  "lattice": {
+    "control_names": [
+      "a1_prior",
+      "a2_labels",
+      "b1_fs",
+      "b2_axis"
+    ],
+    "n_coalitions": 16,
+    "lattice_designs": [
+      "temporal",
+      "random_fully_matched"
+    ],
+    "reference_designs": [
+      "random",
+      "random_matched"
+    ],
+    "baseline_config_id": 0,
+    "fits_per_cut_model_seed": 34,
+    "value_function": "gap-based: v(S) = Delta(empty) - Delta(S)",
+    "panel_fingerprint": "472204b98c910d142302e087405c773e",
+    "cut_years": [
+      2015,
+      2017,
+      2019,
+      2021,
+      2023
+    ],
+    "models": [
+      "logreg",
+      "random_forest",
+      "lightgbm",
+      "mlp"
+    ],
+    "min_test_samples": 20
+  }
+}
