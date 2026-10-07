@@ -1,0 +1,36 @@
+Doi chieu voi bai: lech = 0.00e+00 (dat, phai bang 0)
+So o loai tru 0, bai ghi: 17 | tai tao: 17
+
+ cut         model      R  ci_low  ci_high  excludes_zero      p  p_holm  excludes_zero_holm
+2015      lightgbm 0.1730  0.0667   0.2773           True 0.0020  0.0120                True
+2015        logreg 0.2378  0.1082   0.3550           True 0.0004  0.0044                True
+2015           mlp 0.2210  0.0897   0.3554           True 0.0004  0.0044                True
+2015 random_forest 0.2122  0.0992   0.3224           True 0.0000  0.0000                True
+2017      lightgbm 0.1480 -0.0639   0.3712          False 0.1976  0.1976               False
+2017        logreg 0.3323  0.1142   0.5628           True 0.0016  0.0112                True
+2017           mlp 0.2102 -0.0123   0.4379          False 0.0640  0.1872               False
+2017 random_forest 0.2455 -0.0097   0.4653          False 0.0624  0.1872               False
+2019      lightgbm 0.2389  0.1247   0.3586           True 0.0000  0.0000                True
+2019        logreg 0.2385  0.1289   0.3516           True 0.0000  0.0000                True
+2019           mlp 0.2290  0.0781   0.3755           True 0.0012  0.0096                True
+2019 random_forest 0.2683  0.1623   0.3716           True 0.0000  0.0000                True
+2021      lightgbm 0.2796  0.1824   0.3810           True 0.0000  0.0000                True
+2021        logreg 0.2461  0.1546   0.3457           True 0.0000  0.0000                True
+2021           mlp 0.2292  0.1357   0.3238           True 0.0000  0.0000                True
+2021 random_forest 0.2650  0.1607   0.3729           True 0.0000  0.0000                True
+2023      lightgbm 0.2273  0.0602   0.3918           True 0.0096  0.0384                True
+2023        logreg 0.2552  0.0990   0.4101           True 0.0008  0.0072                True
+2023           mlp 0.2880  0.1323   0.4464           True 0.0000  0.0000                True
+2023 random_forest 0.2712  0.1111   0.4330           True 0.0020  0.0120                True
+
+Loai tru 0 truoc Holm: 17 / 20
+Loai tru 0 sau Holm  : 17 / 20
+
+ cut  R_gop_4_mohinh  ci_low  ci_high  excludes_zero      p
+2015          0.2112  0.1152   0.3045           True 0.0000
+2017          0.2351  0.0325   0.4347           True 0.0204
+2019          0.2441  0.1585   0.3310           True 0.0000
+2021          0.2561  0.1710   0.3470           True 0.0000
+2023          0.2611  0.1207   0.3973           True 0.0004
+
+Cut loai tru 0 khi ghep cap qua mo hinh: 5 / 5

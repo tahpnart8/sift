@@ -1,0 +1,27 @@
+=== Tang 2a: covariate shift thuan, muc do tang dan ===
+2a_covariate_frac0.0               verdict=covariate_shift_sufficient     gap=0.0000 KTC[0.0000,0.0000] ESS=1835.3(91.8%) interpretable=True
+2a_covariate_frac0.3               verdict=covariate_shift_sufficient     gap=0.0000 KTC[0.0000,0.0000] ESS=1871.9(93.6%) interpretable=True
+2a_covariate_frac0.6               verdict=covariate_shift_sufficient     gap=0.0000 KTC[0.0000,0.0000] ESS=1878.2(93.9%) interpretable=True
+2a_covariate_frac1.0               verdict=covariate_shift_sufficient     gap=0.0000 KTC[0.0000,0.0000] ESS=1879.7(94.0%) interpretable=True
+
+=== Tang 2b: bom concept drift that, p(x) gan nhu khong doi ===
+2b_conceptdrift_shift0             verdict=covariate_shift_sufficient     gap=0.0000 KTC[0.0000,0.0000] ESS=1835.3(91.8%) interpretable=True
+2b_conceptdrift_shift1             verdict=conditional_change_implicated  gap=1.0000 KTC[1.0000,1.0000] ESS=1835.3(91.8%) interpretable=True
+2b_conceptdrift_shift3             verdict=conditional_change_implicated  gap=1.0000 KTC[1.0000,1.0000] ESS=1835.3(91.8%) interpretable=True
+2b_conceptdrift_shift5             verdict=conditional_change_implicated  gap=1.0000 KTC[1.0000,1.0000] ESS=1835.3(91.8%) interpretable=True
+
+=== Kiem tieu chi ===
+2a (covariate shift) co ket qua interpretable: 4/4
+  trong do, khong co ca nao bao conditional_change_implicated: True
+2b (concept drift that) co ket qua interpretable: 4/4
+  trong do, cac muc co bom drift (shift>0) deu bao dung: True
+
+              kich_ban                       verdict  conditional_gap_clipped  ess_fraction_clipped  interpretable
+  2a_covariate_frac0.0    covariate_shift_sufficient                      0.0              0.917629           True
+  2a_covariate_frac0.3    covariate_shift_sufficient                      0.0              0.935941           True
+  2a_covariate_frac0.6    covariate_shift_sufficient                      0.0              0.939100           True
+  2a_covariate_frac1.0    covariate_shift_sufficient                      0.0              0.939852           True
+2b_conceptdrift_shift0    covariate_shift_sufficient                      0.0              0.917629           True
+2b_conceptdrift_shift1 conditional_change_implicated                      1.0              0.917629           True
+2b_conceptdrift_shift3 conditional_change_implicated                      1.0              0.917629           True
+2b_conceptdrift_shift5 conditional_change_implicated                      1.0              0.917629           True
