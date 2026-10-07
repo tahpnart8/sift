@@ -1,18 +1,28 @@
-                  taxonomy  so_control     D0  giai_thich_pct      R  phi_A2 control_lon_nhat                 thu_tu
- A1 A2 B1 B2 (khung chinh)           4 0.4500            48.7 0.2310  0.1227               A2      A2 > B2 > A1 > B1
-                     bo A1           3 0.4500            39.8 0.2711  0.1172               A2           A2 > B2 > B1
-                     bo A2           3 0.4500             3.7 0.4335     NaN               A1           A1 > B2 > B1
-                     bo B1           3 0.4500            49.2 0.2286  0.1240               A2           A2 > B2 > A1
-                     bo B2           3 0.4500            11.5 0.3981  0.0474               A2           A2 > A1 > B1
-A1 A2 B1 B2 B3 (5 control)           5 0.5194            55.5 0.2310  0.1182               A2 A2 > B2 > B3 > A1 > B1
-          5-control, bo A1           4 0.5194            47.8 0.2711  0.1119               A2      A2 > B2 > B3 > B1
-          5-control, bo A2           4 0.5194            16.6 0.4335     NaN               B3      B3 > A1 > B2 > B1
-          5-control, bo B1           4 0.5194            56.0 0.2286  0.1185               A2      A2 > B2 > B3 > A1
-          5-control, bo B2           4 0.5194            23.4 0.3981  0.0457               B3      B3 > A2 > A1 > B1
-          5-control, bo B3           4 0.5194            45.4 0.2835  0.1123               A2      A2 > B2 > A1 > B1
+                  taxonomy  so_control     D0  giai_thich_pct      R     vN  phi_A1  phi_A2  phi_B1  phi_B2  phi_B3 control_lon_nhat                 thu_tu
+ A1 A2 B1 B2 (khung chinh)           4 0.4500            48.7 0.2310 0.2190  0.0250  0.1227 -0.0104  0.0817     NaN               A2      A2 > B2 > A1 > B1
+                     bo A1           3 0.4500            39.8 0.2711 0.1789     NaN  0.1172 -0.0148  0.0765     NaN               A2           A2 > B2 > B1
+                     bo A2           3 0.4500             3.7 0.4335 0.0166  0.0195     NaN -0.0092  0.0063     NaN               A1           A1 > B2 > B1
+                     bo B1           3 0.4500            49.2 0.2286 0.2214  0.0207  0.1240     NaN  0.0768     NaN               A2           A2 > B2 > A1
+                     bo B2           3 0.4500            11.5 0.3981 0.0519  0.0199  0.0474 -0.0153     NaN     NaN               A2           A2 > A1 > B1
+A1 A2 B1 B2 B3 (5 control)           5 0.5194            55.5 0.2310 0.2884  0.0269  0.1182 -0.0028  0.0869  0.0593               A2 A2 > B2 > B3 > A1 > B1
+          5-control, bo A1           4 0.5194            47.8 0.2711 0.2483     NaN  0.1119 -0.0066  0.0811  0.0619               A2      A2 > B2 > B3 > B1
+          5-control, bo A2           4 0.5194            16.6 0.4335 0.0860  0.0206     NaN -0.0025  0.0145  0.0534               B3      B3 > A1 > B2 > B1
+          5-control, bo B1           4 0.5194            56.0 0.2286 0.2908  0.0231  0.1185     NaN  0.0824  0.0668               A2      A2 > B2 > B3 > A1
+          5-control, bo B2           4 0.5194            23.4 0.3981 0.1213  0.0210  0.0457 -0.0073     NaN  0.0619               B3      B3 > A2 > A1 > B1
+          5-control, bo B3           4 0.5194            45.4 0.2835 0.2360  0.0295  0.1123  0.0047  0.0895     NaN               A2      A2 > B2 > A1 > B1
 
 A2 lon nhat o 8 / 9 taxonomy co chua A2
 Khoang giai thich: 3.7% toi 56.0%
+
+=== Bo mot control: phan cua no co chui tron vao R khong? ===
+  bo A1: phi cu +0.0250 | R 0.2310 -> 0.2711 (neu chui tron: 0.2560, lech +0.0151)
+    tong phi cua A2+B1+B2: +0.1940 -> +0.1789 (lech -0.0151); tung cai: A2 +0.1227->+0.1172, B1 -0.0104->-0.0148, B2 +0.0817->+0.0765
+  bo A2: phi cu +0.1227 | R 0.2310 -> 0.4335 (neu chui tron: 0.3537, lech +0.0798)
+    tong phi cua A1+B1+B2: +0.0963 -> +0.0166 (lech -0.0797); tung cai: A1 +0.0250->+0.0195, B1 -0.0104->-0.0092, B2 +0.0817->+0.0063
+  bo B1: phi cu -0.0104 | R 0.2310 -> 0.2286 (neu chui tron: 0.2206, lech +0.0080)
+    tong phi cua A1+A2+B2: +0.2294 -> +0.2215 (lech -0.0079); tung cai: A1 +0.0250->+0.0207, A2 +0.1227->+0.1240, B2 +0.0817->+0.0768
+  bo B2: phi cu +0.0817 | R 0.2310 -> 0.3981 (neu chui tron: 0.3127, lech +0.0854)
+    tong phi cua A1+A2+B1: +0.1373 -> +0.0520 (lech -0.0853); tung cai: A1 +0.0250->+0.0199, A2 +0.1227->+0.0474, B1 -0.0104->-0.0153
 Ngoai le (A2 co mat nhung khong lon nhat):
         taxonomy control_lon_nhat
 5-control, bo B2               B3

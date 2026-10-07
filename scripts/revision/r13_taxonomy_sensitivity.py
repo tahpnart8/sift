@@ -53,7 +53,12 @@ def danh_gia(games, players, nhan_taxonomy):
         D0=round(d0, 4),
         giai_thich_pct=round(100 * vn / d0, 1),
         R=round(d0 - vn, 4),
-        phi_A2=round(mp.get("A2", float("nan")), 4) if "A2" in mp else None,
+        vN=round(vn, 4),
+        phi_A1=round(mp["A1"], 4) if "A1" in mp else None,
+        phi_A2=round(mp["A2"], 4) if "A2" in mp else None,
+        phi_B1=round(mp["B1"], 4) if "B1" in mp else None,
+        phi_B2=round(mp["B2"], 4) if "B2" in mp else None,
+        phi_B3=round(mp["B3"], 4) if "B3" in mp else None,
         control_lon_nhat=xep[0],
         thu_tu=" > ".join(xep),
     )
@@ -83,6 +88,28 @@ def main():
         % (so_a2_lon_nhat, len(co_a2))
     )
     print("Khoang giai thich: %.1f%% toi %.1f%%" % (out.giai_thich_pct.min(), out.giai_thich_pct.max()))
+    print("")
+    print("=== Bo mot control: phan cua no co chui tron vao R khong? ===")
+    goc = out.iloc[0]
+    for _, r in out.iloc[1:5].iterrows():
+        bi_bo = r.taxonomy.replace("bo ", "")
+        phi_bi_bo = goc["phi_" + bi_bo]
+        R_neu_chui_tron = goc.R + phi_bi_bo
+        con_lai = [c for c in ("A1", "A2", "B1", "B2") if c != bi_bo]
+        tong_cu = sum(goc["phi_" + c] for c in con_lai)
+        tong_moi = sum(r["phi_" + c] for c in con_lai)
+        print(
+            "  bo %s: phi cu %+.4f | R %.4f -> %.4f (neu chui tron: %.4f, lech %+.4f)"
+            % (bi_bo, phi_bi_bo, goc.R, r.R, R_neu_chui_tron, r.R - R_neu_chui_tron)
+        )
+        print(
+            "    tong phi cua %s: %+.4f -> %+.4f (lech %+.4f); tung cai: %s"
+            % (
+                "+".join(con_lai), tong_cu, tong_moi, tong_moi - tong_cu,
+                ", ".join("%s %+.4f->%+.4f" % (c, goc["phi_" + c], r["phi_" + c]) for c in con_lai),
+            )
+        )
+
     ngoai_le = co_a2[co_a2.control_lon_nhat != "A2"]
     print("Ngoai le (A2 co mat nhung khong lon nhat):")
     print(ngoai_le[["taxonomy", "control_lon_nhat"]].to_string(index=False) if len(ngoai_le) else "  khong co")
